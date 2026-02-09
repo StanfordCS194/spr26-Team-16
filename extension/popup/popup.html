@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ContextHub</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ContextHub</h1>
+    </header>
+
+    <button id="push-btn" class="push-btn">Push This Conversation</button>
+    <div id="status" class="status"></div>
+
+    <div class="divider">
+      <span>Recent Contexts</span>
+    </div>
+
+    <div id="recent-list" class="recent-list">
+      <div class="loading">Loading...</div>
+    </div>
+
+    <div class="footer">
+      <a id="dashboard-link" href="#">Open Dashboard</a>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

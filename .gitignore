@@ -1,0 +1,11 @@
+__pycache__/
+backend/.env
+backend/contexthub.db
+backend/data/transcripts/*.json
+backend/venv/
+node_modules/
+dashboard/dist/
+.DS_Store
+*.pyc
+.pytest_cache/
+api_key.txt
