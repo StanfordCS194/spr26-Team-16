@@ -29,7 +29,7 @@
 
 ## Project synopsis
 
-We are building a **GitHub-aligned context layer** for **enterprise-scale use of large language models (LLMs)**. The idea is a shared organizational layer that routes questions to the right knowledge, policies, and code context—so teams get **faster, more grounded answers** without everyone rebuilding the same retrieval and governance plumbing. In two words, its a meta-LLM.
+In two words, we're building a meta-LLM. Its a Github-esque layer for enterprise-level use of LLMs. A shared context layer for cross-organizational use helps users route queries to a centralized system that condenses the right knowledge, policies and context so that teams can get faster, more grounded answers without wasting non-trivial resources and tokens on trivial answers that have been retrieved many times before.
 
 ---
 
