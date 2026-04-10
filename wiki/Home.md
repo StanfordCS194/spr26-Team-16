@@ -23,21 +23,18 @@
 
 **“I Will Survive”** — Gloria Gaynor ([YouTube search](https://www.youtube.com/results?search_query=Gloria+Gaynor+I+Will+Survive+official)) · ([Wikipedia article](https://en.wikipedia.org/wiki/I_Will_Survive))
 
-We picked it for the resilience vibe: shipping an enterprise context layer means iterating through ambiguity, scaling surprises, and still shipping—*“as long as I know how to love, I know I’ll stay alive.”*
+
 
 ---
 
 ## Project synopsis
 
-We are building a **GitHub-aligned context layer** for **enterprise-scale use of large language models (LLMs)**. The idea is a shared organizational layer that routes questions to the right knowledge, policies, and code context—so teams get **faster, more grounded answers** without everyone rebuilding the same retrieval and governance plumbing. Think of it as a **meta-LLM substrate**: one place for context that many assistants and workflows can reuse.
+We are building a **GitHub-aligned context layer** for **enterprise-scale use of large language models (LLMs)**. The idea is a shared organizational layer that routes questions to the right knowledge, policies, and code context—so teams get **faster, more grounded answers** without everyone rebuilding the same retrieval and governance plumbing. In two words, its a meta-LLM.
 
 ---
 
 ## Team member matrix
 
-Photos are **128×128** placeholders generated from names so the table meets the “photo + name” requirement until official headshots are uploaded. Strengths and gaps follow our team charter.
-
-Layout follows GitHub-flavored Markdown tables ([GitHub Docs: tables](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-tables)).
 
 | Name | Photo | Areas of expertise | Gaps to fill |
 | :---: | :---: | :--- | :--- |
