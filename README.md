@@ -1,6 +1,6 @@
 # spr26-Team-16 (XARPA)
 
-**Team Wiki (landing page for the Wiki tab):** [github.com/StanfordCS194/spr26-Team-16/wiki](https://github.com/StanfordCS194/spr26-Team-16/wiki)](https://github.com/StanfordCS194/spr26-Team-16/wiki)
+**Team Wiki (landing page for the Wiki tab):** (https://github.com/StanfordCS194/spr26-Team-16/wiki)
 
 ## Project synopsis
 
