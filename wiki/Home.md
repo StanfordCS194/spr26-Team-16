@@ -57,7 +57,7 @@ We are building a **GitHub-aligned context layer** for **enterprise-scale use of
 | **Email (Philip)** | [pmiao@stanford.edu](mailto:pmiao@stanford.edu) |
 | **Email (Aalaap)** | [aalaaph@stanford.edu](mailto:aalaaph@stanford.edu) |
 | **Email (Romina)** | [rominaj@stanford.edu](mailto:rominaj@stanford.edu) |
-| **Course Slack** | Use the **CS194 / course Slack** space announced on Canvas (channel name TBD by staff). |
+| **Course Slack** |  |
 
 
 ---
