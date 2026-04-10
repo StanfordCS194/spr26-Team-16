@@ -1,12 +1,11 @@
 # XARPA — Team Wiki Home
 
-Welcome to **XARPA** (extra vowels, extra context): our internal hub for CS194 project coordination.
 
 ---
 
 ## Team name
 
-**XARPA** — *eXperimental ARchitecture for Prompt Augmentation* (working name). Pronounced like the agency, spelled with heart.
+**XARPA** — *eXperimental ARchitecture for Prompt Augmentation* , and also Cici / Aaalap / Romina / Phillip / Abhiraj
 
 ---
 
