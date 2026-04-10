@@ -1,6 +1,6 @@
 # spr26-Team-16 (XARPA)
 
-**Team Wiki (landing page for the Wiki tab):** [github.com/StanfordCS194/spr26-Team-16/wiki](https://github.com/StanfordCS194/spr26-Team-16/wiki)
+**Team Wiki (landing page for the Wiki tab):** [github.com/StanfordCS194/spr26-Team-16/wiki](https://github.com/StanfordCS194/spr26-Team-16/wiki)](https://github.com/StanfordCS194/spr26-Team-16/wiki)
 
 ## Project synopsis
 
@@ -8,7 +8,7 @@ We are building a **GitHub-aligned context layer** for **enterprise-scale LLM us
 
 ## Source for Wiki content
 
-The Wiki **Home** page markdown lives in this repo at [`wiki/Home.md`](wiki/Home.md) (including team name, logo, theme music, member matrix, and communication links). After you merge to `main`, paste or sync that file to the GitHub Wiki **Home** page so the Wiki tab matches version-controlled content.
+The Wiki **Home** page markdown lives in the wiki tab (including team name, logo, theme music, member matrix, and communication links). After you merge to `main`, paste or sync that file to the GitHub Wiki **Home** page so the Wiki tab matches version-controlled content.
 
 ## Team
 
