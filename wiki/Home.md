@@ -63,7 +63,6 @@ Layout follows GitHub-flavored Markdown tables ([GitHub Docs: tables](https://do
 | **Email (Romina)** | [rominaj@stanford.edu](mailto:rominaj@stanford.edu) |
 | **Course Slack** | Use the **CS194 / course Slack** space announced on Canvas (channel name TBD by staff). |
 
-For urgent threads, tag **@channel** only when needed; otherwise default to **direct messages** or a single **team thread** to reduce noise.
 
 ---
 
