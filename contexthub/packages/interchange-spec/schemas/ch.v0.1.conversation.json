@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contexthub.dev/schemas/ch.v0.1/conversation.json",
+  "title": "ConversationV0",
+  "description": "ContextHub portable conversation format, version ch.v0.1.",
+  "type": "object",
+  "required": ["spec_version", "source", "messages"],
+  "additionalProperties": false,
+  "properties": {
+    "spec_version": { "const": "ch.v0.1" },
+    "source": { "$ref": "#/$defs/Source" },
+    "messages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Message" }
+    },
+    "metadata": { "$ref": "#/$defs/Metadata" }
+  },
+  "$defs": {
+    "Source": {
+      "type": "object",
+      "required": ["platform", "captured_at"],
+      "additionalProperties": false,
+      "properties": {
+        "platform": { "enum": ["claude_ai"] },
+        "conversation_id": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "model": { "type": "string" },
+        "captured_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "client_version": { "type": "string" },
+        "user_agent": { "type": "string" }
+      }
+    },
+    "Message": {
+      "type": "object",
+      "required": ["role", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "enum": ["user", "assistant", "system"] },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MessageContent" }
+        },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "MessageContent": {
+      "oneOf": [
+        { "$ref": "#/$defs/TextPart" },
+        { "$ref": "#/$defs/CodeBlockPart" },
+        { "$ref": "#/$defs/ImageRefPart" },
+        { "$ref": "#/$defs/ToolUsePart" },
+        { "$ref": "#/$defs/AttachmentRefPart" }
+      ]
+    },
+    "TextPart": {
+      "type": "object",
+      "required": ["type", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "text" },
+        "text": { "type": "string" }
+      }
+    },
+    "CodeBlockPart": {
+      "type": "object",
+      "required": ["type", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "code_block" },
+        "language": { "type": "string" },
+        "body": { "type": "string" }
+      }
+    },
+    "ImageRefPart": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "image_ref" },
+        "url": { "type": "string" },
+        "storage_path": { "type": "string" },
+        "mime_type": { "type": "string" },
+        "alt_text": { "type": "string" }
+      }
+    },
+    "ToolUsePart": {
+      "type": "object",
+      "required": ["type", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "tool_use" },
+        "name": { "type": "string" },
+        "input": { "type": "string" },
+        "output": { "type": "string" }
+      }
+    },
+    "AttachmentRefPart": {
+      "type": "object",
+      "required": ["type", "filename"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "attachment_ref" },
+        "filename": { "type": "string" },
+        "mime_type": { "type": "string" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "storage_path": { "type": "string" }
+      }
+    }
+  }
+}

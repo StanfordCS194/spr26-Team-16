@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'contexthub/**'
+      - '.github/workflows/**'
+
+defaults:
+  run:
+    working-directory: contexthub
+
+jobs:
+  python:
+    name: python · lint + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - run: uv run ruff check .
+      - run: uv run --package contexthub-interchange pytest
+
+  typescript:
+    name: typescript · typecheck + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: contexthub/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm -r test -- --run
+
+  codegen-drift:
+    name: codegen drift check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: contexthub/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: uv tool install datamodel-code-generator
+      - run: pnpm run codegen
+      - name: fail on drift
+        run: |
+          if ! git diff --exit-code; then
+            echo "::error::Generated models are out of sync with schemas. Run 'pnpm run codegen' locally and commit the result."
+            exit 1
+          fi

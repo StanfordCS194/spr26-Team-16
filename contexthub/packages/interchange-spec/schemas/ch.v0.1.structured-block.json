@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contexthub.dev/schemas/ch.v0.1/structured-block.json",
+  "title": "StructuredBlockV0",
+  "description": "ContextHub structured-block format, version ch.v0.1. The authoritative shape for push summaries' structured-block layer.",
+  "type": "object",
+  "required": [
+    "spec_version",
+    "decisions",
+    "artifacts",
+    "open_questions",
+    "assumptions",
+    "constraints"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "spec_version": { "const": "ch.v0.1" },
+    "decisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Decision" }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Artifact" }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/OpenQuestion" }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "Decision": {
+      "type": "object",
+      "required": ["title", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "rationale": { "type": "string" },
+        "message_refs": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "Artifact": {
+      "type": "object",
+      "required": ["kind", "name", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["schema", "code", "outline", "other"] },
+        "name": { "type": "string" },
+        "body": { "type": "string" },
+        "language": { "type": "string" }
+      }
+    },
+    "OpenQuestion": {
+      "type": "object",
+      "required": ["question"],
+      "additionalProperties": false,
+      "properties": {
+        "question": { "type": "string" },
+        "context": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [
+    { "title": "Single decision", "rationale": "only one" }
+  ],
+  "artifacts": [
+    { "kind": "other", "name": "single artifact", "body": "content" }
+  ],
+  "open_questions": [
+    { "question": "Single question?", "context": "only one" }
+  ],
+  "assumptions": ["single assumption"],
+  "constraints": ["single constraint"]
+}

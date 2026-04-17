@@ -1,0 +1,26 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [],
+  "artifacts": [
+    {
+      "kind": "schema",
+      "name": "summaries table",
+      "language": "sql",
+      "body": "CREATE TABLE summaries (\n    id UUID PRIMARY KEY,\n    push_id UUID NOT NULL,\n    layer TEXT NOT NULL,\n    content_json JSONB NOT NULL,\n    content_markdown TEXT NOT NULL\n);"
+    },
+    {
+      "kind": "code",
+      "name": "render helper",
+      "language": "typescript",
+      "body": "export function section(title: string, body: string): string {\n  return `## ${title}\\n\\n${body}`;\n}"
+    },
+    {
+      "kind": "outline",
+      "name": "push pipeline milestones",
+      "body": "- Module 1: interchange-spec\n- Module 2: schema + migrations\n- Module 3: auth\n- Module 4: providers"
+    }
+  ],
+  "open_questions": [],
+  "assumptions": [],
+  "constraints": []
+}

@@ -1,0 +1,30 @@
+{
+  "spec_version": "ch.v0.1",
+  "source": {
+    "platform": "claude_ai",
+    "conversation_id": "conv_tool_01",
+    "url": "https://claude.ai/chat/conv_tool_01",
+    "model": "claude-haiku-4-5",
+    "captured_at": "2026-04-17T13:00:00Z"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "Search the repo for 'LLMProvider' references." }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "name": "Grep",
+          "input": "{\"pattern\":\"LLMProvider\",\"path\":\"contexthub\"}",
+          "output": "packages/interchange-spec/README.md:1 matches\npackages/backend/providers.py:3 matches"
+        },
+        { "type": "text", "text": "Two files reference it. Want me to open either?" }
+      ]
+    }
+  ]
+}

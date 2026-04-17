@@ -1,0 +1,15 @@
+[project]
+name = "contexthub-workspace"
+version = "0.0.0"
+description = "ContextHub monorepo — Python workspace root"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = ["packages/interchange-spec/python"]
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.26",
+    "pytest>=8",
+    "ruff>=0.6",
+]

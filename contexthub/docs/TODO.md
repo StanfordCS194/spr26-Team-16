@@ -68,19 +68,11 @@ Items that must be closed before beta users touch the product.
 
 ---
 
-## This week — Module 1: `packages/interchange-spec`
+## This week — Module 2: backend schema + migrations
 
-- [ ] Create `contexthub/` monorepo skeleton: `pnpm-workspace.yaml`, root `package.json`, `.gitignore`, `.env.example`, `.editorconfig`. Location to be finalized in the Module 1 proposal per Aalaap's guidance (existing repo root is untouched).
-- [ ] `packages/interchange-spec/schemas/ch.v0.1.json` — conversation JSON Schema.
-- [ ] `packages/interchange-spec/schemas/structured-block.v0.1.json` — structured-block sub-schema.
-- [ ] `packages/interchange-spec/python/model.py` — Pydantic v2 models mirroring both schemas.
-- [ ] `packages/interchange-spec/python/renderer.py` — structured-block → markdown renderer.
-- [ ] `packages/interchange-spec/ts/renderer.ts` — structured-block → markdown renderer (TS).
-- [ ] `packages/interchange-spec/fixtures/` — ≥5 conversation fixtures (short, long, code-heavy, tool-use, attachment-ref) + ≥10 structured-block fixtures.
-- [ ] `packages/interchange-spec/tests/` — JSON Schema validation, Pydantic round-trip, renderer golden-fixture cross-impl test (Py vs TS byte-identical).
-- [ ] `datamodel-code-generator` wired: `pnpm run codegen` → `packages/shared-types/src/*.ts`; CI drift check.
-- [ ] Validator CLI: `uv run ch-validate <file>` for dev ergonomics.
-- [ ] Propose-approve-implement cycle: module proposal (file structure, interfaces, test strategy) → Aalaap review → implement.
+_(Module 1 shipped 2026-04-17 — see **Done**. Awaiting Aalaap review before starting Module 2.)_
+
+- [ ] Module 2 proposal: SQLAlchemy model layout for §5 tables, Alembic migration file naming, RLS policy shape (per-table), fixture dataset generator (≥50 workspaces / ≥500 pushes), up+down CI job, "user A ≠ user B" RLS integration test, and a small local-dev seed. Propose before coding.
 
 ## Next up
 
@@ -135,4 +127,23 @@ Items that must be closed before beta users touch the product.
 
 ## Done
 
-_(empty for now — populated as modules ship)_
+### Module 1 — `packages/interchange-spec` · shipped 2026-04-17
+- [x] Monorepo scaffolding at `contexthub/` (`pnpm-workspace.yaml`, root `package.json`, root `pyproject.toml`, `.gitignore`, `.editorconfig`, `README.md`). Empty `contexthub/src/` deleted.
+- [x] `ch.v0.1` conversation JSON Schema (`schemas/ch.v0.1.conversation.json`).
+- [x] `ch.v0.1` structured-block JSON Schema (`schemas/ch.v0.1.structured-block.json`).
+- [x] Pydantic v2 models (`python/contexthub_interchange/models.py`) — generated from JSON Schemas by `datamodel-code-generator`.
+- [x] TypeScript types (`src/models.ts`) — generated from JSON Schemas by `json-schema-to-typescript`.
+- [x] Python structured-block markdown renderer (`python/contexthub_interchange/renderer.py`).
+- [x] TypeScript structured-block markdown renderer (`src/renderer.ts`).
+- [x] Byte-level renderer contract spec (`docs/renderer-spec.md`).
+- [x] 5 conversation fixtures (short / long / code-heavy / tool-use / attachment-ref).
+- [x] 10 structured-block fixtures + 10 `.expected.md` golden files covering: minimal, maximal, empty-lists, unicode (NFC), long artifact, multiple artifacts, nested markdown, missing optional fields, single-item lists, special chars.
+- [x] Python tests (20 passing): `test_models.py`, `test_validator.py`, `test_renderer.py`, `test_golden.py`.
+- [x] TypeScript tests (41 passing): `models.test.ts`, `renderer.test.ts`, `golden.test.ts`.
+- [x] `ch-validate` CLI (`uv run ch-validate <file>`).
+- [x] `ch-golden` CLI (`uv run ch-golden --write`) for regenerating golden fixtures.
+- [x] Codegen scripts: `pnpm run codegen` → TS (`scripts/codegen.mjs`) + Py (`scripts/codegen_py.py`).
+- [x] AJV runtime validator wrapper (`src/ajv.ts`) for TS consumers.
+- [x] GitHub Actions CI (`.github/workflows/ci.yml`): Python lint+test, TS typecheck+test, codegen drift check. Runs on PRs to `main`, not every push.
+- [x] `@contexthub/shared-types` skeleton package (re-exports interchange-spec until Module 2 adds API-row types).
+- [x] Monorepo tooling: pnpm 10.33 (via corepack), uv 0.10.4, Python 3.13, Node 18.

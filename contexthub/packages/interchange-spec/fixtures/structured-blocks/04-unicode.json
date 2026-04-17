@@ -1,0 +1,18 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [
+    {
+      "title": "Use \u201CSmart\u201D Quotes",
+      "rationale": "Respect user typography \u2014 don\u2019t re-flow"
+    }
+  ],
+  "artifacts": [],
+  "open_questions": [
+    {
+      "question": "Should we normalize caf\u00e9 or cafe\u0301 first?",
+      "context": "NFC collapses both into caf\u00e9"
+    }
+  ],
+  "assumptions": ["Unicode input is NFC at rest"],
+  "constraints": ["Outputs \u2014 including code blocks \u2014 normalize to NFC"]
+}

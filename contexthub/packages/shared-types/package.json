@@ -1,0 +1,21 @@
+{
+  "name": "@contexthub/shared-types",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Generated TypeScript types shared across extension, dashboard, and backend clients. Re-exports from @contexthub/interchange-spec until Module 2 adds backend-generated types.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet' && exit 0"
+  },
+  "dependencies": {
+    "@contexthub/interchange-spec": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

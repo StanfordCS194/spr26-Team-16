@@ -1,0 +1,22 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [
+    {
+      "title": "Quote raw markdown in rationales",
+      "rationale": "Inline code like `render_structured_block` and lists:\n- one\n- two\nmust pass through verbatim"
+    },
+    {
+      "title": "Preserve **bold** and *italic* as-is",
+      "rationale": "The renderer does not escape; summarizer output already assumes markdown rendering downstream."
+    }
+  ],
+  "artifacts": [],
+  "open_questions": [
+    {
+      "question": "Should rationales allow code fences ``` inside?",
+      "context": "A body containing ``` would collide with artifact fences if copy-pasted; avoid in prompts."
+    }
+  ],
+  "assumptions": [],
+  "constraints": []
+}

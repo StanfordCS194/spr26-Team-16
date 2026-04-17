@@ -48,22 +48,14 @@ Target: closed beta with 50–100 users, aligned with PRD milestones (architectu
 
 ## Active work
 
-**This session:** ARCHITECTURE.md + PLAN.md + TODO.md rev. 2 (incorporates all locked decisions). Stop after updating. Await green light.
+**Shipped 2026-04-17:** Module 1 — `packages/interchange-spec`. See `TODO.md` Done section for the full delivery list. 20 Python tests + 41 TypeScript tests + typecheck all green against a running codegen pipeline.
 
-**Next session (after approval):** Module 1 — `packages/interchange-spec`. Deliverables:
-- `ch.v0.1` conversation JSON Schema + Pydantic model.
-- Structured-block sub-schema + Pydantic model.
-- `datamodel-code-generator` wired with `pnpm run codegen` producing `packages/shared-types`.
-- CI drift check: codegen runs in CI; diff against committed output fails the build.
-- Shared structured-block markdown renderer: Python (`packages/interchange-spec/python/renderer.py`) and TypeScript (`packages/interchange-spec/ts/renderer.ts`), both consuming the same sub-schema.
-- Golden-fixture cross-impl test: ≥10 structured-block fixtures; Py and TS renderers must produce byte-identical markdown output; CI-gated.
-- Validator CLI (`uv run ch-validate fixtures/*.json`) for dev.
 
-**Session after that:** Module 2 — backend schema + Alembic migrations + local Supabase wiring + RLS policies + integration test proving user A cannot read user B.
+**Next session (after review):** Module 2 — backend schema + Alembic migrations + local Supabase wiring + RLS policies + fixture dataset (≥50 workspaces / ≥500 pushes) + Alembic up+down CI job + integration test proving user A cannot read user B. Starts with a Module 2 proposal for approval.
 
 ---
 
-## Open questions (need Aalaap input)
+## Open questions
 
 High-impact blockers for Module 1 are resolved. Remaining items (all non-blocking for Module 1; defaults in ARCHITECTURE.md §11):
 
@@ -166,9 +158,20 @@ Running log. Each entry: **date — decision — context — rationale — conse
 
 - **2026-04-17 — v0 files land under `contexthub/` in the existing repo (Option Z).**
   - Context: XARPA (Stanford CS194 `spr26-Team-16`) and ContextHub are the same project — team vs product naming. User asked to keep existing files untouched.
-  - Decision: ContextHub docs live at `contexthub/ARCHITECTURE.md` / `PLAN.md` / `TODO.md`. Existing repo root (`README.md`, `docs/`, `wiki/`) is untouched. Monorepo scaffolding location to be finalized in Module 1 proposal.
-  - Rationale: user directive; avoid destructive changes to team-identity files; unblock Module 1.
-  - Consequences: when we scaffold pnpm workspaces, we'll place them where Aalaap specifies at that time. Docs are colocated with code.
+  - Decision: ContextHub docs live at `contexthub/docs/*.md`. Monorepo scaffolding (pnpm + uv workspaces) lives at `contexthub/`. Existing repo root (`README.md`, `docs/`, `wiki/`) is untouched.
+  - Rationale: user directive; avoid destructive changes to team-identity files; scoping ContextHub inside `contexthub/` keeps class repo tidy.
+  - Consequences: pnpm-workspace root + uv workspace root are both at `contexthub/`; repo root has no JS or Python tooling.
+
+- **2026-04-17 — Two-tool codegen pipeline (json-schema-to-typescript + datamodel-code-generator).**
+  - Context: Module 1 proposal; `datamodel-code-generator`'s TS output is weaker than the dedicated tool.
+  - Decision: JSON Schema is the single source of truth. TS types regenerated from it via `json-schema-to-typescript`; Python Pydantic models regenerated via `datamodel-code-generator`. Both drive a single `pnpm run codegen` orchestrator; CI drift-checks both outputs.
+  - Rationale: cleaner generated output per language beats forcing one tool to do both; the drift check catches any regressions either way.
+  - Consequences: two codegen scripts (`scripts/codegen.mjs` + `scripts/codegen_py.py`); one additional dev dep (`json-schema-to-typescript`). Acceptable.
+
+- **2026-04-17 — Workspace URL short_ID generation deferred to Module 2.**
+  - Context: Module 1 didn't need it; encoder will be written when `workspaces.id` lands.
+  - Decision: the base62-of-UUIDv7-suffix encoder lives in a backend utility module, not in `interchange-spec` (which stays pure data-model).
+  - Consequences: `interchange-spec` remains dependency-light; URL concerns live with the backend.
 
 - **2026-04-17 — Observability wired on day one, not a post-MVP concern.**
   - Context: kickoff prompt.

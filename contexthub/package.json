@@ -1,0 +1,26 @@
+{
+  "name": "contexthub",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ContextHub monorepo root — version control for LLM conversations.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=18.18"
+  },
+  "scripts": {
+    "codegen": "pnpm -r --filter @contexthub/interchange-spec run codegen",
+    "test": "pnpm -r test",
+    "test:py": "uv run --package contexthub-interchange pytest",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1",
+    "json-schema-to-typescript": "^15.0.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "@types/node": "^22.5.5",
+    "prettier": "^3.3.3"
+  }
+}

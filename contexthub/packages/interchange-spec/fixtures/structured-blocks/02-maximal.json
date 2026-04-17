@@ -1,0 +1,44 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [
+    {
+      "title": "Adopt ARQ for async push",
+      "rationale": "Async job queue on Redis; lightweight + Python-native",
+      "message_refs": [3, 5]
+    },
+    {
+      "title": "Workspace-scoped search in v0",
+      "rationale": "Simpler RLS story; multi-workspace search lands with teams",
+      "message_refs": [7]
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "schema",
+      "name": "pushes table",
+      "language": "sql",
+      "body": "CREATE TABLE pushes (\n    id UUID PRIMARY KEY,\n    workspace_id UUID NOT NULL,\n    status TEXT NOT NULL DEFAULT 'pending'\n);"
+    },
+    {
+      "kind": "code",
+      "name": "api client sketch",
+      "language": "python",
+      "body": "async def create_push(client, payload):\n    return await client.post('/v1/pushes', json=payload)"
+    }
+  ],
+  "open_questions": [
+    {
+      "question": "Do we cache pull responses?",
+      "context": "Latency target is 200ms at p95; cache would help if repeats are common"
+    },
+    { "question": "Multi-pull ordering: chronological or user-chosen?" }
+  ],
+  "assumptions": [
+    "Single-user workspaces in v0",
+    "Claude.ai is the only source platform at beta launch"
+  ],
+  "constraints": [
+    "Haiku context window bounds conversation size per push",
+    "Supabase free-tier row limits during beta"
+  ]
+}

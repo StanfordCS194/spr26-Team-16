@@ -1,0 +1,33 @@
+{
+  "spec_version": "ch.v0.1",
+  "source": {
+    "platform": "claude_ai",
+    "conversation_id": "conv_short_01",
+    "url": "https://claude.ai/chat/conv_short_01",
+    "model": "claude-haiku-4-5",
+    "captured_at": "2026-04-17T10:15:30Z"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "Hi — what's a quick way to base62-encode a UUID?" }
+      ],
+      "created_at": "2026-04-17T10:15:25Z"
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Take the raw 16 bytes, treat them as a bigint, and convert to base62 (0-9a-zA-Z). Output is ~22 chars; you can truncate to 11 by using only the low 64 bits."
+        }
+      ],
+      "created_at": "2026-04-17T10:15:28Z"
+    }
+  ],
+  "metadata": {
+    "title": "UUID to base62",
+    "client_version": "contexthub-ext/0.0.1"
+  }
+}

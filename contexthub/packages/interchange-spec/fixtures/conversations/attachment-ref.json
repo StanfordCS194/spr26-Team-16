@@ -1,0 +1,37 @@
+{
+  "spec_version": "ch.v0.1",
+  "source": {
+    "platform": "claude_ai",
+    "conversation_id": "conv_attach_01",
+    "url": "https://claude.ai/chat/conv_attach_01",
+    "model": "claude-haiku-4-5",
+    "captured_at": "2026-04-17T14:00:00Z"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "Pull the relevant bits from this PRD." },
+        {
+          "type": "attachment_ref",
+          "filename": "contexthub_prd.docx",
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "size_bytes": 28451,
+          "storage_path": "uploads/user_abc/2026-04-17/contexthub_prd.docx"
+        },
+        {
+          "type": "image_ref",
+          "url": "https://claude.ai/files/img_xarpa_arch_p1.png",
+          "mime_type": "image/png",
+          "alt_text": "XARPA architecture diagram page 1"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        { "type": "text", "text": "The PRD's v1 scope is push + search + pull on a single LLM platform. The diagram maps cleanly onto ingress → processor → memory → context-builder → egress." }
+      ]
+    }
+  ]
+}
