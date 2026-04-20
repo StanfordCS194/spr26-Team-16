@@ -13,3 +13,5 @@ The Wiki **Home** page markdown lives in the wiki tab (including team name, logo
 ## Team
 
 **XARPA** — see the Wiki for logo, theme music, roster, and contact emails.
+
+**Cici Hou** - SCWG
