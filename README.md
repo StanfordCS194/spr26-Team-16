@@ -14,4 +14,4 @@ The Wiki **Home** page markdown lives in the wiki tab (including team name, logo
 
 **XARPA** — see the Wiki for logo, theme music, roster, and contact emails.
 
-**Abhiraj Gupta**
+**Abhiraj Gupta** - SCWG
