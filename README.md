@@ -16,4 +16,3 @@ The Wiki **Home** page markdown lives in the wiki tab (including team name, logo
 
 **Romina Jately** - SCWG
 **Abhiraj Gupta** - SCWG
-**Phillip Miao** - SCWG
