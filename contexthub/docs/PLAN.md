@@ -1,6 +1,6 @@
 # ContextHub — Plan
 
-**Status:** living document. Last updated 2026-04-17 (rev. 2, post-answers pass).
+**Status:** living document. Last updated 2026-04-23 (rev. 3, post-Modules 2/3 pass).
 
 ---
 
@@ -55,6 +55,8 @@ Target: closed beta with 50–100 users, aligned with PRD milestones (architectu
 **Shipped 2026-04-22:** Module 3 — `backend/auth`. Supabase JWT verifier, API-token mint/verify/revoke, FastAPI dependency chain (get_db_session → get_current_user → get_rls_session), auth routes (GET /v1/me, POST|GET|DELETE /v1/tokens), health routes, 54/54 unit tests green, 21 integration tests CI-gated. See `VALIDATION.md` Module 3 entry.
 
 **Next session (after review):** Module 4 — `backend/providers`. `LLMProvider` + `EmbeddingProvider` ABCs + `AnthropicProvider` (Claude Haiku 4.5) + `VoyageEmbeddingProvider` (`voyage-3-large`, 1024d) + prompt-version registry.
+
+**Distribution note:** Modules 4–8 will be picked up by other team members. Read `INTEGRATION.md` before starting — it documents the concrete integration points of Modules 1/2/3 (imports, patterns, auth-dependency chain, RLS session pattern, testing discipline, CI extension) and lists the four docs to update when any module ships. Re-assert the proposal-before-code workflow for all subsequent modules.
 
 ---
 
@@ -253,6 +255,23 @@ Running log. Each entry: **date — decision — context — rationale — conse
   - Decision: per-class retention matrix (transcripts, pushes, summaries, feedback, audit_log, pulls, tokens, account deletion) with scheduled ARQ purge jobs. All windows are config knobs.
   - Rationale: GDPR-readiness + operational cleanliness + clear story for pre-launch security pass.
   - Consequences: new ARQ job family (`purge_*`); Module 8 (storage + ARQ) adds purge-job skeletons even if full implementation slips to Module 17 timeframe.
+
+- **2026-04-23 — `short_id.py` UUIDv7 randomness uses `random`, not `secrets`.**
+  - Context: post-Module-2 review noted `contexthub_backend/db/short_id.py:19` calls `random.getrandbits` for the UUIDv7 timestamp tail. Python's `random` is Mersenne Twister (predictable, not cryptographically strong); `secrets` is the stdlib module explicitly for security-sensitive randomness.
+  - Decision: accept for v0 (collision probability is negligible at 50–100 beta-user scale); swap to `secrets.randbits` before beta. Tracked under `TODO.md` pre-launch security. Not a blocker for Modules 4–8.
+  - Rationale: behavior-equivalent at our scale; the hardening is about predictability, not collision, and we have no adversarial ID-guessing surface in v0.
+  - Consequences: single-line change when we do the pre-launch security pass; no API impact.
+
+- **2026-04-23 — Modules 4–8 picked up by other team members; integration handshake doc created.**
+  - Context: Aalaap-plus-Claude shipped Modules 1/2/3; remaining v0 backend modules (providers, ingress, summarizer, embeddings, storage+ARQ) will be implemented by different team members using their own Claude contexts.
+  - Decision: create `contexthub/docs/INTEGRATION.md` as the concrete handshake — surface area of Modules 1/2/3 (imports, function signatures, dependency chain, RLS pattern), testing/CI patterns to follow, and the four-doc update protocol (ARCHITECTURE, PLAN, TODO, VALIDATION) to run on module completion. Re-assert proposal-before-code workflow.
+  - Rationale: without a single entry point, each contributor's Claude re-derives conventions and drifts; the integration doc is cheap insurance.
+  - Consequences: INTEGRATION.md becomes a living doc; update it if Module 4's exported ABCs change the surface, or if any patterns evolve.
+
+- **2026-04-22 — Module 3 (`backend/auth`) shipped ahead of Module 4 per Aalaap's direction.**
+  - Context: original roadmap §6 table listed Module 3 = auth immediately after Module 2 = schema, with Module 4 = providers next; Romina implemented Module 3 on Aalaap's direct instruction. Order matches the original module numbering.
+  - Decision: no renumbering; Module 4 (providers) remains next.
+  - Consequences: auth layer exists for Modules 5+ to depend on; workflow-wise, we still expect proposal-before-code from Module 4 onward.
 
 - **2026-04-17 — Single-call three-layer summary flagged as known v0 quality risk.**
   - Context: Aalaap pattern concern — one malformed output loses all three layers.

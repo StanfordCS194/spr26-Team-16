@@ -1,6 +1,6 @@
 # ContextHub — TODO
 
-**Status:** living document. Last updated 2026-04-17 (rev. 2, post-answers pass).
+**Status:** living document. Last updated 2026-04-23 (rev. 3, post-Modules 2/3 pass).
 
 Conventions:
 - `[ ]` open · `[~]` in progress · `[x]` done (moves to **Done** section)
@@ -17,6 +17,7 @@ Items that must be closed before beta users touch the product.
 - [ ] (sec) End-to-end security audit before first external user. Scope: auth flows, token storage, RLS policies, secret handling, dependency CVE sweep.
 - [ ] (sec) Supabase RLS policy audit — assert "user A cannot read user B's rows" via automated integration test, not just code review.
 - [ ] (sec) API token lifecycle: short-lived refresh model *or* strong revocation UX (audit on use, rate cap on misuse, visible "last used" per token).
+- [ ] (sec) Swap `contexthub_backend/db/short_id.py:19` from `random.getrandbits` to `secrets.randbits` for UUIDv7 randomness. `random` is Mersenne Twister (predictable); `secrets` is the stdlib cryptographically-strong RNG. Trivial change. Negligible collision risk at v0 scale, but principle: any ID we treat as unguessable must come from `secrets`.
 - [ ] (sec) Backend ↔ extension auth hardening: CORS allowlist, `X-Request-Id` propagation, strict request-size caps, anti-CSRF for dashboard JWT usage.
 - [ ] (sec) Secret management: no Supabase service key in client bundles; verify via build-time check. Rotate keys between staging/prod.
 - [ ] (sec) Sensitive-data scrub: client-side preview in extension + server-side regex pass for obvious patterns (emails, API-key-looking strings, long hex, JWT shapes). NER-based scrub is v1+.

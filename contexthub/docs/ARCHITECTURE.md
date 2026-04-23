@@ -1,8 +1,9 @@
 # ContextHub — Architecture
 
-**Status:** living document. Last updated 2026-04-17 (rev. 2, post-answers pass).
+**Status:** living document. Last updated 2026-04-23 (rev. 3, post-Modules 2/3 pass).
 **Owner:** Aalaap Hegde.
 **Scope of this doc:** v0 system design. Everything P1+ lives in `PLAN.md` parking lot.
+**Implementation state:** Modules 1, 2, 3 shipped. Module 4 (providers) is next. Integration handshake for incoming contributors lives in `INTEGRATION.md`.
 
 ---
 
@@ -266,32 +267,37 @@ interchange_format_versions     # schema-versioning for the portable conversatio
 - `summaries.superseded_by` lets users edit the structured block without losing history — required for the summary-quality eval set.
 - `summaries.content_json` is authoritative; `content_markdown` is a rendered projection. Renderer change → backfill job, not migration.
 
+### 5.4 Implementation notes (post-Module 2)
+
+- Short-IDs: `contexthub_backend/db/short_id.py` encodes the lower 64 bits of a UUIDv7 as an 11-char base62 string. The UUIDv7 generator currently uses `random.getrandbits` for timestamp-tail randomness; this is **not cryptographically strong** and is tracked as a pre-launch security fix (swap to `secrets.randbits`). Collision risk at v0 scale remains negligible, so this is not a blocker for v0 implementation work but must close before beta.
+- `summary_embeddings` is created via raw DDL in `001_initial_schema.py` because Alembic's autogenerate does not understand pgvector's `Vector` type. Any future schema change on that table must be hand-edited into a migration; autogenerate will not detect drift.
+
 ---
 
 ## 6. Module breakdown (implementation roadmap)
 
 Modules are the unit of session work. Order below is the expected implementation sequence. 1–17 = v0 core; 18 = stretch.
 
-| # | Module | Purpose | Inputs | Outputs | Depends on |
-| - | ------ | ------- | ------ | ------- | ---------- |
-| 1 | `packages/interchange-spec` | JSON Schema + Pydantic for `ch.v0.1` + structured-block sub-schema; codegen (datamodel-code-generator → TS types); shared markdown renderer in Py + TS with golden-fixture cross-impl tests | — | `ch.v0.1` schemas, generated TS types, renderer, validator CLI | — |
-| 2 | `backend/schema` | SQLAlchemy models + Alembic migrations for §5; RLS policies; seed data | interchange-spec | DB + generated TS types | 1 |
-| 3 | `backend/auth` | Supabase JWT verifier + API token mint/verify/revoke | HTTP requests | Authenticated `User` | 2 |
-| 4 | `backend/providers` | `LLMProvider` + `EmbeddingProvider` ABCs; `AnthropicProvider` + `VoyageEmbeddingProvider` impls; prompt-version registry | prompts, messages | completions, embeddings + usage | — |
-| 5 | `backend/ingress` | FastAPI middleware: auth, Redis rate limit, idempotency, schema validate, sensitive-data scrub hook | requests | validated typed requests | 2, 3 |
-| 6 | `backend/summarizer` | Three-layer summary generator, single Claude call, JSON-output mode, versioned prompt | normalized conversation | 3 summaries (JSON) + quality metadata | 2, 4 |
-| 7 | `backend/embeddings` | Embedding service using `EmbeddingProvider`; writes `summary_embeddings` | summary text | vector | 2, 4 |
-| 8 | `backend/storage` + ARQ jobs | Pushes writer; ARQ job registry (`summarize_push`, `embed_summary`); transcript blob upload; retries + DLQ | push payload | persisted push; status transitions | 2, 6, 7 |
-| 9 | `backend/search` | Hybrid (vector + BM25) search over summaries, workspace-scoped | query, filters | ranked results w/ previews | 2, 7 |
-| 10 | `backend/context_builder` | Resolution selector, multi-pull concat, token budget, provenance footer, framing prompt; uses shared renderer | push_ids + resolution | formatted pull payload | 1, 2 |
-| 11 | `backend/egress` | Response sanitization, ACL re-check, audit log write | domain response | HTTP response | 2, 3 |
-| 12 | `backend/api` | FastAPI routes wiring §7 endpoints to modules above | HTTP | HTTP | 5–11 |
-| 13 | `packages/extension/core` | Platform-agnostic: auth/token storage, API client, push review UI, search UI, pull UI, injector-abstract | user actions | API calls + DOM mutations (via adapter) | 1, 12 |
-| 14 | `packages/extension/adapters/claude` | Claude.ai DOM scraper + **auto-scroll-to-load for virtualized conversations** + input-field injector + fragility guards | DOM | normalized conversation / injected text | 13 |
-| 15 | `packages/dashboard` | Next.js App Router: auth, workspace list, push browse, search, token management, pull-from-dashboard | user actions | API calls | 1, 12 |
-| 16 | `backend/observability` | Sentry init, JSON logger, PostHog server wrappers, request-ID middleware | events | emitted telemetry | — (parallelizable) |
-| 17 | `backend/rate_limit_cost_cap` | Redis-backed per-user quota enforcement; cost cap on LLM calls (hard=block, soft=degrade) | request + user | allow/deny | 3 |
-| 18 | `packages/extension/auth-pairing` (stretch) | Pairing-code flow replacing copy-paste token | code | stored token | 13 |
+| # | Module | Status | Purpose | Inputs | Outputs | Depends on |
+| - | ------ | ------ | ------- | ------ | ------- | ---------- |
+| 1 | `packages/interchange-spec` | **✅ shipped 2026-04-17** | JSON Schema + Pydantic for `ch.v0.1` + structured-block sub-schema; codegen (datamodel-code-generator → TS types); shared markdown renderer in Py + TS with golden-fixture cross-impl tests | — | `ch.v0.1` schemas, generated TS types, renderer, validator CLI | — |
+| 2 | `backend/schema` | **✅ shipped 2026-04-22** | SQLAlchemy models + Alembic migrations for §5; RLS policies; seed data | interchange-spec | DB + generated TS types | 1 |
+| 3 | `backend/auth` | **✅ shipped 2026-04-22** | Supabase JWT verifier + API token mint/verify/revoke; FastAPI dependency chain (`get_db_session`, `get_current_user`, `get_rls_session`, `require_jwt`); error envelope; `/v1/health`, `/v1/version`, `/v1/me`, `/v1/tokens` routes | HTTP requests | Authenticated `AuthUser` + RLS-bound session | 2 |
+| 4 | `backend/providers` | ⏳ not started | `LLMProvider` + `EmbeddingProvider` ABCs; `AnthropicProvider` + `VoyageEmbeddingProvider` impls; prompt-version registry | prompts, messages | completions, embeddings + usage | — |
+| 5 | `backend/ingress` | ⏳ not started | FastAPI middleware: auth, Redis rate limit, idempotency, schema validate, sensitive-data scrub hook | requests | validated typed requests | 2, 3 |
+| 6 | `backend/summarizer` | ⏳ not started | Three-layer summary generator, single Claude call, JSON-output mode, versioned prompt | normalized conversation | 3 summaries (JSON) + quality metadata | 2, 4 |
+| 7 | `backend/embeddings` | ⏳ not started | Embedding service using `EmbeddingProvider`; writes `summary_embeddings` | summary text | vector | 2, 4 |
+| 8 | `backend/storage` + ARQ jobs | ⏳ not started | Pushes writer; ARQ job registry (`summarize_push`, `embed_summary`); transcript blob upload; retries + DLQ | push payload | persisted push; status transitions | 2, 6, 7 |
+| 9 | `backend/search` | ⏳ not started | Hybrid (vector + BM25) search over summaries, workspace-scoped | query, filters | ranked results w/ previews | 2, 7 |
+| 10 | `backend/context_builder` | ⏳ not started | Resolution selector, multi-pull concat, token budget, provenance footer, framing prompt; uses shared renderer | push_ids + resolution | formatted pull payload | 1, 2 |
+| 11 | `backend/egress` | ⏳ not started | Response sanitization, ACL re-check, audit log write | domain response | HTTP response | 2, 3 |
+| 12 | `backend/api` | ⏳ not started | FastAPI routes wiring §7 endpoints to modules above | HTTP | HTTP | 5–11 |
+| 13 | `packages/extension/core` | ⏳ not started | Platform-agnostic: auth/token storage, API client, push review UI, search UI, pull UI, injector-abstract | user actions | API calls + DOM mutations (via adapter) | 1, 12 |
+| 14 | `packages/extension/adapters/claude` | ⏳ not started | Claude.ai DOM scraper + **auto-scroll-to-load for virtualized conversations** + input-field injector + fragility guards | DOM | normalized conversation / injected text | 13 |
+| 15 | `packages/dashboard` | ⏳ not started | Next.js App Router: auth, workspace list, push browse, search, token management, pull-from-dashboard | user actions | API calls | 1, 12 |
+| 16 | `backend/observability` | ⏳ not started | Sentry init, JSON logger, PostHog server wrappers, request-ID middleware | events | emitted telemetry | — (parallelizable) |
+| 17 | `backend/rate_limit_cost_cap` | ⏳ not started | Redis-backed per-user quota enforcement; cost cap on LLM calls (hard=block, soft=degrade) | request + user | allow/deny | 3 |
+| 18 | `packages/extension/auth-pairing` (stretch) | ⏳ not started | Pairing-code flow replacing copy-paste token | code | stored token | 13 |
 
 Module 1 ships before everything because every other module references the interchange schema and the shared renderer.
 
