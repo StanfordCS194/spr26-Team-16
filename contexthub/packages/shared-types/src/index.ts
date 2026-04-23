@@ -2,9 +2,10 @@
  * @contexthub/shared-types
  *
  * Single import point for every TS consumer (extension, dashboard, API clients).
- * Today: re-exports from @contexthub/interchange-spec.
- * Module 2: adds backend-generated types (DB row shapes, API request/response
- * bodies) produced by datamodel-code-generator from Pydantic → JSON Schema → TS.
+ * Exports:
+ *  - interchange-spec types (ch.v0.1 conversation + structured-block models)
+ *  - DB row types for all §5 tables (API response shapes)
  */
 
 export * from "@contexthub/interchange-spec";
+export * from "./db-types";

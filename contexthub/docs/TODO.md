@@ -68,16 +68,14 @@ Items that must be closed before beta users touch the product.
 
 ---
 
-## This week — Module 2: backend schema + migrations
+## This week — Module 3: backend auth
 
-_(Module 1 shipped 2026-04-17 — see **Done**. Awaiting Aalaap review before starting Module 2.)_
+_(Module 2 shipped 2026-04-22 — see **Done**. Awaiting review before starting Module 3.)_
 
-- [ ] Module 2 proposal: SQLAlchemy model layout for §5 tables, Alembic migration file naming, RLS policy shape (per-table), fixture dataset generator (≥50 workspaces / ≥500 pushes), up+down CI job, "user A ≠ user B" RLS integration test, and a small local-dev seed. Propose before coding.
+- [ ] Module 3: `backend/auth` — Supabase JWT verifier middleware + API-token mint/verify/revoke; integration tests for both auth paths; FastAPI dependency that resolves a `User` from either auth path; confirm RLS "user A ≠ user B" holds through the API layer (not just raw Postgres). Propose before coding.
 
 ## Next up
 
-- [ ] Module 2: backend schema + Alembic migrations — all tables from ARCHITECTURE.md §5 (incl. `pulls.workspace_ids`), RLS policies, seed data for dev, fixture dataset (≥50 workspaces / ≥500 pushes) + Alembic up+down CI job. No `rate_limit_counters` Postgres table (Redis-backed).
-- [ ] Module 3: backend auth — Supabase JWT verification + API-token mint/verify/revoke; integration tests for both auth paths; RLS "user A ≠ user B" test.
 - [ ] Module 4: `backend/providers` — `LLMProvider` + `EmbeddingProvider` ABCs + `AnthropicProvider` + `VoyageEmbeddingProvider` + prompt-version registry.
 - [ ] Module 16: observability — Sentry + JSON logger + PostHog + request-ID middleware wired before summarizer/storage work begins, so every subsequent module ships with telemetry.
 
@@ -126,6 +124,23 @@ _(Module 1 shipped 2026-04-17 — see **Done**. Awaiting Aalaap review before st
 ---
 
 ## Done
+
+### Module 2 — `backend/schema` · shipped 2026-04-22
+- [x] `contexthub_backend/db/short_id.py` — UUIDv7 generator + base62 encoder (~11 chars) for `/w/{short_id}` URLs.
+- [x] `contexthub_backend/db/models.py` — SQLAlchemy 2.x ORM models for all 14 §5 tables; includes `summaries.failure_reason` addition from PLAN.md decision log.
+- [x] `contexthub_backend/db/base.py` — sync + async engine factories (`make_sync_engine`, `make_async_engine`).
+- [x] `alembic/versions/001_initial_schema.py` — fully reversible migration: all tables, indices (`ix_pushes_workspace_created`, `ix_pushes_user_idempotency_key`, `ix_summaries_push_layer`, GIN tsvector, HNSW), tsvector trigger (`trg_summaries_tsv`), `ch_authenticated` role, RLS policies for all 14 tables.
+- [x] `sql/auth_stub.sql` — `auth` schema stub for local dev / CI (no-op against real Supabase).
+- [x] `scripts/gen_fixtures.py` — ≥50 workspaces / ≥500 pushes (60 WS / 550 pushes); covers all enum values, nullable fields, all summary layers, tags, relationships, feedback, pulls, audit rows.
+- [x] `scripts/seed_dev.py` — minimal local-dev seed (2 users, 3 workspaces, 10 pushes, summaries, 1 audit row).
+- [x] `backend/docker-compose.yml` — `pgvector/pgvector:pg15` + `redis:7-alpine` for local dev.
+- [x] Unit tests: `test_short_id.py` (12) + `test_models.py` (23) = **35 / 35 passing** (no DB required).
+- [x] Integration tests (CI-gated against `pgvector/pgvector:pg15`): `test_migrations.py` (up+down roundtrip, fixture counts, index/trigger/column assertions) + `test_rls.py` (user A ≠ user B across workspaces, pushes, profiles; null uid sees nothing).
+- [x] `packages/shared-types/src/db-types.ts` — TypeScript row interfaces for all 14 tables + 7 enums; exported from `@contexthub/shared-types`.
+- [x] `.github/workflows/ci.yml` — new `migrations` job: Postgres service, auth stub, alembic up, fixture load, integration tests, alembic down. Backend unit tests added to existing `python` job.
+- [x] Root `pyproject.toml` — `backend` added to uv workspace members; `norecursedirs = ["backend"]` prevents conftest collision; `integration` mark registered.
+- [x] `backend/pyproject.toml` — `integration` mark registered; `asyncio_mode = auto`.
+- [x] `VALIDATION.md` Module 2 entry — 16-row checks table, known warnings, left-for-later items.
 
 ### Module 1 — `packages/interchange-spec` · shipped 2026-04-17
 - [x] Monorepo scaffolding at `contexthub/` (`pnpm-workspace.yaml`, root `package.json`, root `pyproject.toml`, `.gitignore`, `.editorconfig`, `README.md`). Empty `contexthub/src/` deleted.

@@ -50,8 +50,9 @@ Target: closed beta with 50–100 users, aligned with PRD milestones (architectu
 
 **Shipped 2026-04-17:** Module 1 — `packages/interchange-spec`. See `TODO.md` Done section for the full delivery list. 20 Python tests + 41 TypeScript tests + typecheck all green against a running codegen pipeline.
 
+**Shipped 2026-04-22:** Module 2 — `backend/schema`. All 14 §5 tables, Alembic up+down migration, RLS policies (`ch_authenticated` role + `auth.uid()` stub), tsvector trigger, HNSW index, `gen_fixtures.py` (60 WS / 550 pushes), `seed_dev.py`, `docker-compose.yml`, 35/35 unit tests green, integration tests CI-gated (`pgvector/pgvector:pg15`), `shared-types` TS row types. See `VALIDATION.md` Module 2 entry for full check list.
 
-**Next session (after review):** Module 2 — backend schema + Alembic migrations + local Supabase wiring + RLS policies + fixture dataset (≥50 workspaces / ≥500 pushes) + Alembic up+down CI job + integration test proving user A cannot read user B. Starts with a Module 2 proposal for approval.
+**Next session (after review):** Module 3 — `backend/auth`. Supabase JWT verifier middleware + API-token mint/verify/revoke endpoints; integration tests for both auth paths against the Module 2 schema; confirm RLS "user A ≠ user B" holds end-to-end through the FastAPI layer (not just raw Postgres).
 
 ---
 

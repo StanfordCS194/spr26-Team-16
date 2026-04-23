@@ -5,11 +5,19 @@ description = "ContextHub monorepo — Python workspace root"
 requires-python = ">=3.12"
 
 [tool.uv.workspace]
-members = ["packages/interchange-spec/python"]
+members = ["packages/interchange-spec/python", "backend"]
 
 [dependency-groups]
 dev = [
     "datamodel-code-generator>=0.26",
     "pytest>=8",
     "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+# backend/ has its own pytest config; exclude it from workspace-root runs
+# so the two tests/conftest.py modules don't collide.
+norecursedirs = ["backend", ".git", ".venv", "node_modules", "dist"]
+markers = [
+    "integration: marks tests requiring a live DB (deselect with -m 'not integration')",
 ]

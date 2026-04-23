@@ -23,6 +23,9 @@ jobs:
       - run: uv sync --all-extras --dev
       - run: uv run ruff check .
       - run: uv run --package contexthub-interchange pytest
+      - name: backend unit tests (no DB)
+        run: uv run --package contexthub-backend pytest tests/test_short_id.py tests/test_models.py -v
+        working-directory: contexthub/backend
 
   typescript:
     name: typescript · typecheck + test
@@ -40,6 +43,55 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
       - run: pnpm -r test -- --run
+
+  migrations:
+    name: migrations · up+down+rls
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: contexthub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/contexthub_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - name: apply auth stub
+        run: |
+          uv run python - << 'EOF'
+          import psycopg, pathlib
+          stub = pathlib.Path("backend/sql/auth_stub.sql").read_text()
+          with psycopg.connect("postgresql://postgres:postgres@localhost:5432/contexthub_test", autocommit=True) as conn:
+              conn.execute(stub)
+          EOF
+      - name: alembic upgrade head
+        run: uv run --package contexthub-backend python -m alembic upgrade head
+        working-directory: contexthub/backend
+      - name: load fixture dataset
+        run: uv run --package contexthub-backend python scripts/gen_fixtures.py
+        working-directory: contexthub/backend
+      - name: run migration + rls tests
+        run: >
+          uv run --package contexthub-backend pytest
+          tests/test_migrations.py tests/test_rls.py
+          -m integration -v
+        working-directory: contexthub/backend
+      - name: alembic downgrade base
+        run: uv run --package contexthub-backend python -m alembic downgrade base
+        working-directory: contexthub/backend
 
   codegen-drift:
     name: codegen drift check

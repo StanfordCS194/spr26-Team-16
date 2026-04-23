@@ -44,6 +44,43 @@ Convention per entry:
 
 ---
 
+## Module 2 — `backend/schema` · 2026-04-22
+
+**Environment:** macOS 25.3.0 (Darwin, arm64); Python 3.13.9; uv (workspace sync); pytest 9.0.3; SQLAlchemy 2.x; Alembic 1.x; pgvector 0.3.x; psycopg 3.x; Faker 40.x. Integration tests (DB-required) run against `pgvector/pgvector:pg15` in CI.
+
+| Check | Result | Note |
+| ----- | ------ | ---- |
+| Unit: `test_short_id.py` | **12 / 12 passing** | UUIDv7 version field, time-ordering across ms, uniqueness (1000 samples), base62 charset + length, determinism, padding |
+| Unit: `test_models.py` | **23 / 23 passing** | All 14 tables registered on `Base.metadata`; PK types, nullability, FK chains, `failure_reason`/`quality_score`/`content_tsv` columns on `summaries` |
+| Total unit (no DB) | **35 / 35 passing** | Run via `uv run --package contexthub-backend pytest tests/test_short_id.py tests/test_models.py` |
+| Interchange-spec tests (regression) | **20 / 20 passing** | No regressions from workspace changes; `norecursedirs` fix applied to root `pyproject.toml` to prevent conftest collision |
+| SQLAlchemy models import cleanly | pass | `from contexthub_backend.db import models` succeeds; all 14 ORM classes load with correct `__tablename__` |
+| `short_id_from_uuid` determinism | pass | Same UUID → same 11-char base62 string across calls |
+| UUIDv7 bit layout (version nibble) | pass | `uuid.UUID.version == 7` confirmed |
+| DB row types in `shared-types` | pass | `packages/shared-types/src/db-types.ts` exports all 14 row interfaces + 7 enum types; `tsc` typecheck clean |
+| Integration: `alembic upgrade head` | **CI-gated** | Runs against `pgvector/pgvector:pg15` in the new `migrations` CI job on every PR to `main` |
+| Integration: fixture load ≥50 WS / ≥500 pushes | **CI-gated** | `gen_fixtures.py` generates 60 workspaces, 550 pushes, all enum values populated, all nullable fields exercised |
+| Integration: `alembic downgrade base` | **CI-gated** | All 14 app tables + 7 enums + vector extension dropped; no tables remain after downgrade |
+| Integration: RLS user A ≠ user B (workspaces, pushes, profiles) | **CI-gated** | `ch_authenticated` role + `SET LOCAL "app.current_user_id"` driving `auth.uid()` stub; 8 assertions across 3 test classes |
+| `content_tsv` tsvector trigger | **CI-gated** | `test_migrations.py` asserts rows with non-null `content_markdown` have non-null `content_tsv` |
+| HNSW index on `summary_embeddings.embedding` | **CI-gated** | `pg_indexes` row confirmed in migration test |
+| `pulls.workspace_ids` is ARRAY column | **CI-gated** | `information_schema.columns.data_type = 'ARRAY'` confirmed |
+| `summaries.failure_reason` column | **CI-gated** | Present per PLAN.md Module 2 deliverable update |
+
+**Known warnings (accepted):**
+
+- `PytestUnknownMarkWarning: Unknown pytest.mark.integration` — suppressed by registering the mark in both root and backend `pyproject.toml`. No longer emitted after fix.
+- `asyncio_default_fixture_loop_scope` deprecation notice from `pytest-asyncio` — noise-only, no test impact; will resolve when pytest-asyncio bumps its default.
+
+**Left for later:**
+
+- Integration tests (`test_migrations.py`, `test_rls.py`) run only in CI against a live Postgres service. Local execution requires `docker-compose up` in `backend/` plus `DATABASE_URL` set — not yet part of a `make` / `just` task. → add to Module 3 local-dev runbook.
+- `auth_stub.sql` is applied manually in CI (one-liner in the workflow); local dev requires explicit `psql -f sql/auth_stub.sql`. A `make setup-local` or `just setup` target should wrap this. → `TODO.md` ops.
+- `summary_embeddings` table is created via raw DDL (`op.execute(...)`) rather than `create_table()` because pgvector's `Vector` type isn't in Alembic's diff engine. Autogenerate will not detect drift on this table. → add a note to the migration contributor guide when Module 3 docs land.
+- RLS policies on `summary_embeddings`, `transcripts`, `push_tags`, `push_relationships`, and `summary_feedback` are tested only indirectly (via `summaries` and `pushes` ownership checks). Direct per-table RLS tests deferred to the pre-launch security audit.
+
+---
+
 <!--
 When adding a new module's entry, follow this template:
 
