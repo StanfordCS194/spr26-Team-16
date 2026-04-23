@@ -68,16 +68,16 @@ Items that must be closed before beta users touch the product.
 
 ---
 
-## This week — Module 3: backend auth
+## This week — Module 4: backend providers
 
-_(Module 2 shipped 2026-04-22 — see **Done**. Awaiting review before starting Module 3.)_
+_(Module 3 shipped 2026-04-22 — see **Done**. Awaiting review before starting Module 4.)_
 
-- [ ] Module 3: `backend/auth` — Supabase JWT verifier middleware + API-token mint/verify/revoke; integration tests for both auth paths; FastAPI dependency that resolves a `User` from either auth path; confirm RLS "user A ≠ user B" holds through the API layer (not just raw Postgres). Propose before coding.
+- [ ] Module 4: `backend/providers` — `LLMProvider` + `EmbeddingProvider` ABCs + `AnthropicProvider` (Claude Haiku 4.5) + `VoyageEmbeddingProvider` (`voyage-3-large`, 1024d) + prompt-version registry. Propose before coding.
 
 ## Next up
 
-- [ ] Module 4: `backend/providers` — `LLMProvider` + `EmbeddingProvider` ABCs + `AnthropicProvider` + `VoyageEmbeddingProvider` + prompt-version registry.
 - [ ] Module 16: observability — Sentry + JSON logger + PostHog + request-ID middleware wired before summarizer/storage work begins, so every subsequent module ships with telemetry.
+- [ ] Module 5: `backend/workspaces` — CRUD for workspaces + short-ID resolver; workspace-scoped push listing.
 
 ## Parking lot
 
@@ -124,6 +124,21 @@ _(Module 2 shipped 2026-04-22 — see **Done**. Awaiting review before starting 
 ---
 
 ## Done
+
+### Module 3 — `backend/auth` · shipped 2026-04-22
+- [x] `contexthub_backend/config.py` — pydantic-settings (`DATABASE_URL`, `SUPABASE_JWT_SECRET`, `async_database_url` derived property).
+- [x] `auth/jwt.py` — `verify_supabase_jwt` (HS256, requires `sub` + `exp`); `make_test_jwt` helper for tests.
+- [x] `auth/tokens.py` — `generate_raw_token` (`ch_` + 64 hex), `hash_token` (SHA-256), `mint_token`, `verify_api_token`, `touch_token`, `revoke_token`; VALID_SCOPES + ALL_SCOPES constants.
+- [x] `auth/dependencies.py` — `get_db_session` (async transaction, superuser), `get_current_user` (JWT or `ch_` token, FastAPI-cached per request), `get_rls_session` (`SET LOCAL ROLE ch_authenticated` + `app.current_user_id`), `require_jwt` guard; `_set_engine` for test injection.
+- [x] `schemas/auth.py` — `TokenCreateRequest` (scope validation), `TokenRow`, `TokenMintResponse`, `MeResponse`.
+- [x] `api/errors.py` — `AuthError`, `ForbiddenError`, `NotFoundError`, `ValidationError` + FastAPI exception handlers; error envelope `{error: {code, message, request_id}}`.
+- [x] `api/app.py` — FastAPI factory; request-ID middleware (`X-Request-Id` header); exception handlers wired.
+- [x] `api/routes/health.py` — `GET /v1/health`, `GET /v1/version`.
+- [x] `api/routes/auth.py` — `GET /v1/me`, `POST /v1/tokens` (JWT-only), `GET /v1/tokens`, `DELETE /v1/tokens/{id}`.
+- [x] Unit tests: `test_auth_unit.py` — **19 / 19 passing** (no DB). Total unit suite: **54 / 54**.
+- [x] Integration tests (CI-gated): `test_auth_api.py` — 21 tests covering both auth paths, token lifecycle, RLS isolation user A ≠ user B through the FastAPI layer.
+- [x] CI: `test_auth_unit.py` added to `python` job; `test_auth_api.py` + `SUPABASE_JWT_SECRET` added to `migrations` job.
+- [x] `VALIDATION.md` Module 3 entry — 22-row checks table, known warnings, left-for-later items.
 
 ### Module 2 — `backend/schema` · shipped 2026-04-22
 - [x] `contexthub_backend/db/short_id.py` — UUIDv7 generator + base62 encoder (~11 chars) for `/w/{short_id}` URLs.

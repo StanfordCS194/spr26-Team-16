@@ -81,6 +81,50 @@ Convention per entry:
 
 ---
 
+## Module 3 — `backend/auth` · 2026-04-22
+
+**Environment:** macOS 25.3.0 (Darwin, arm64); Python 3.13.9; pytest 9.0.3; FastAPI 0.115.x; PyJWT 2.9.x; httpx 0.27.x; SQLAlchemy 2.x async (asyncpg). Integration tests CI-gated against `pgvector/pgvector:pg15`.
+
+| Check | Result | Note |
+| ----- | ------ | ---- |
+| Unit: `test_auth_unit.py` | **19 / 19 passing** | JWT verify (valid, wrong secret, expired, missing sub, non-UUID sub, wrong algorithm), make_test_jwt roundtrip, token generation (prefix, length, uniqueness, hex body), hash (deterministic, SHA-256 length, stdlib parity, collision-free), scope constants |
+| Total unit (no DB) | **54 / 54 passing** | Includes Module 2 test_short_id (12) + test_models (23) + Module 3 test_auth_unit (19) |
+| Interchange-spec regression | **20 / 20 passing** | No regressions; norecursedirs config confirmed effective |
+| `verify_supabase_jwt` rejects wrong secret | pass | PyJWTError → AuthError("invalid JWT: …") |
+| `verify_supabase_jwt` rejects expired token | pass | Requires `exp` claim; past exp raises AuthError |
+| `verify_supabase_jwt` rejects non-UUID sub | pass | AuthError("not a valid UUID") |
+| `generate_raw_token` format | pass | `ch_` prefix + 64-char hex body = 67 chars; unique across 200 samples |
+| `hash_token` matches stdlib SHA-256 | pass | `hashlib.sha256(raw.encode()).hexdigest()` parity confirmed |
+| Scope constants complete | pass | VALID_SCOPES == ALL_SCOPES == {push, pull, search, read} |
+| `GET /v1/health` unauthenticated | pass | 200; X-Request-Id header present |
+| `GET /v1/me` with valid JWT | **CI-gated** | 200 + correct user_id; profile row resolved via RLS session |
+| `GET /v1/me` with valid API token | **CI-gated** | 200; token lookup via SHA-256 hash before RLS context set |
+| `GET /v1/me` with bad/expired JWT | **CI-gated** | 401 with error envelope |
+| `POST /v1/tokens` with JWT | **CI-gated** | 201; raw `ch_` token returned once; not in subsequent GET list |
+| `POST /v1/tokens` with API token | **CI-gated** | 403 (require_jwt guard) |
+| `POST /v1/tokens` invalid scopes | **CI-gated** | 422 (Pydantic validation) |
+| `GET /v1/tokens` RLS: user A ≠ user B | **CI-gated** | User A cannot see user B's tokens through the API layer |
+| `GET /v1/tokens` RLS: user B ≠ user A | **CI-gated** | Symmetric; confirmed in both directions |
+| `DELETE /v1/tokens/{id}` by owner | **CI-gated** | 204; token absent from subsequent list; token rejected on next use (401) |
+| `DELETE /v1/tokens/{id}` by non-owner | **CI-gated** | 403 (ForbiddenError) |
+| RLS context set correctly per request | **CI-gated** | `SET LOCAL ROLE ch_authenticated` + `app.current_user_id` applied after auth lookup, before route handler; superuser connection bypasses RLS only during token lookup |
+| Request-ID middleware | pass | Every response carries `X-Request-Id` UUID header |
+| `require_jwt` guard on mint endpoint | pass | auth_type == "jwt" enforced; API tokens blocked from minting new tokens |
+
+**Known warnings (accepted):**
+
+- `InsecureKeyLengthWarning` from PyJWT in `test_wrong_secret_raises_auth_error` — deliberate: `"wrong-secret"` (12 bytes) is intentionally too short to prove the verifier rejects it. All other test secrets are ≥32 bytes; warning is suppressed there.
+- `asyncio_default_fixture_loop_scope` deprecation from pytest-asyncio — noise-only, no test impact.
+
+**Left for later:**
+
+- `test_auth_api.py` integration tests (21 tests) are CI-gated; local run requires docker-compose + `DATABASE_URL` + `SUPABASE_JWT_SECRET` env vars. No `make`/`just` task wraps this yet → add to local-dev runbook in Module 4.
+- `GET /v1/me` returns `null` for `display_name`/`avatar_url` if no profile row exists (new user, profile not yet created). A profile-creation-on-first-login trigger or upsert in the `/me` handler should be added pre-launch → `TODO.md` pre-launch quality.
+- `last_used_at` updated in-memory on API token use and flushed at commit. If the request fails after auth but before commit, the update is lost — acceptable for v0 audit granularity.
+- Token list endpoint returns all non-revoked tokens with no pagination. At v0 scale (handful of tokens per user) this is fine; add cursor pagination pre-launch if needed.
+
+---
+
 <!--
 When adding a new module's entry, follow this template:
 

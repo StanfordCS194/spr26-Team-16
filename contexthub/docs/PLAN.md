@@ -52,7 +52,9 @@ Target: closed beta with 50–100 users, aligned with PRD milestones (architectu
 
 **Shipped 2026-04-22:** Module 2 — `backend/schema`. All 14 §5 tables, Alembic up+down migration, RLS policies (`ch_authenticated` role + `auth.uid()` stub), tsvector trigger, HNSW index, `gen_fixtures.py` (60 WS / 550 pushes), `seed_dev.py`, `docker-compose.yml`, 35/35 unit tests green, integration tests CI-gated (`pgvector/pgvector:pg15`), `shared-types` TS row types. See `VALIDATION.md` Module 2 entry for full check list.
 
-**Next session (after review):** Module 3 — `backend/auth`. Supabase JWT verifier middleware + API-token mint/verify/revoke endpoints; integration tests for both auth paths against the Module 2 schema; confirm RLS "user A ≠ user B" holds end-to-end through the FastAPI layer (not just raw Postgres).
+**Shipped 2026-04-22:** Module 3 — `backend/auth`. Supabase JWT verifier, API-token mint/verify/revoke, FastAPI dependency chain (get_db_session → get_current_user → get_rls_session), auth routes (GET /v1/me, POST|GET|DELETE /v1/tokens), health routes, 54/54 unit tests green, 21 integration tests CI-gated. See `VALIDATION.md` Module 3 entry.
+
+**Next session (after review):** Module 4 — `backend/providers`. `LLMProvider` + `EmbeddingProvider` ABCs + `AnthropicProvider` (Claude Haiku 4.5) + `VoyageEmbeddingProvider` (`voyage-3-large`, 1024d) + prompt-version registry.
 
 ---
 
