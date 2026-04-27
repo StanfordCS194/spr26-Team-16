@@ -1,0 +1,99 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import json
+
+from pydantic import ValidationError as PydanticValidationError
+
+from contexthub_interchange.models import ConversationV0, StructuredBlockV0
+from contexthub_interchange.renderer import render_structured_block
+
+from contexthub_backend.providers.base import LLMProvider
+from contexthub_backend.providers.registry import get_prompt
+
+
+@dataclass(slots=True)
+class ThreeLayerSummary:
+    commit_message: str
+    structured_block: StructuredBlockV0
+    raw_transcript: str
+    model: str
+    prompt_version: str
+    input_tokens: int
+    output_tokens: int
+    latency_ms: int
+    cost_usd: float
+    failure_reason: str | None = None
+
+
+def _fallback_commit_message(conversation: ConversationV0) -> str:
+    for msg in conversation.messages:
+        for content in msg.content:
+            text = getattr(content.root, "text", "")
+            if text:
+                return f"Fallback summary: {text[:120]}"
+    return "Fallback summary: conversation captured."
+
+def _build_prompt(conversation: ConversationV0, prompt_version: str) -> str:
+    prompt = get_prompt(prompt_version)
+    conversation_json = json.dumps(conversation.model_dump(mode="json"), sort_keys=True)
+    return f"{prompt}\nConversation JSON:\n{conversation_json}"
+
+
+async def summarize_push(
+    conversation: ConversationV0,
+    *,
+    llm: LLMProvider,
+    prompt_version: str,
+) -> ThreeLayerSummary:
+    failure_reason: str | None = None
+    for _ in range(3):
+        response = await llm.complete(
+            _build_prompt(conversation, prompt_version),
+            response_format="json",
+            max_tokens=1600,
+            temperature=0.1,
+        )
+        try:
+            payload = json.loads(response.text)
+            structured = StructuredBlockV0.model_validate(payload["structured_block"])
+            return ThreeLayerSummary(
+                commit_message=payload["commit_message"],
+                structured_block=structured,
+                raw_transcript=payload.get("raw_transcript", ""),
+                model=response.model,
+                prompt_version=response.prompt_version,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                latency_ms=response.latency_ms,
+                cost_usd=response.cost_usd,
+                failure_reason=response.failure_reason,
+            )
+        except (KeyError, json.JSONDecodeError, PydanticValidationError) as exc:
+            failure_reason = f"invalid_summary_json: {exc}"
+
+    fallback_block = StructuredBlockV0(
+        spec_version="ch.v0.1",
+        decisions=[],
+        artifacts=[],
+        open_questions=[],
+        assumptions=[],
+        constraints=[],
+    )
+    return ThreeLayerSummary(
+        commit_message=_fallback_commit_message(conversation),
+        structured_block=fallback_block,
+        raw_transcript="",
+        model="fallback",
+        prompt_version=prompt_version,
+        input_tokens=0,
+        output_tokens=0,
+        latency_ms=0,
+        cost_usd=0.0,
+        failure_reason=failure_reason,
+    )
+
+
+def structured_block_markdown(structured_block: StructuredBlockV0) -> str:
+    return render_structured_block(structured_block)
+

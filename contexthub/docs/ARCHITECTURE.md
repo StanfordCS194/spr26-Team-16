@@ -88,6 +88,8 @@ ASYNC LEG — ARQ worker processes the job; extension polls GET /v1/pushes/{id}.
 Retries: ARQ with exponential backoff + jitter. DLQ on permanent failure.
 ```
 
+Implementation note (2026-04-23): the shipped ingress path is `POST /v1/workspaces/{id}/pushes` in the shared FastAPI app factory (`api.app.create_app`) and uses Module 3 dependencies (`get_current_user`, `get_rls_session`) so all workspace/push writes are RLS-scoped. The sync leg writes both `pushes` (pending) and `transcripts`, then enqueues `summarize_push`.
+
 ### 4.2 Pull pipeline (sync)
 
 ```

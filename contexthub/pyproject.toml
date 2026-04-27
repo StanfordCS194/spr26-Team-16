@@ -7,10 +7,15 @@ requires-python = ">=3.12"
 [tool.uv.workspace]
 members = ["packages/interchange-spec/python", "backend"]
 
+[tool.uv.sources]
+contexthub-interchange = { workspace = true }
+contexthub-backend = { workspace = true }
+
 [dependency-groups]
 dev = [
     "datamodel-code-generator>=0.26",
     "pytest>=8",
+    "pytest-asyncio>=0.24",
     "ruff>=0.6",
 ]
 

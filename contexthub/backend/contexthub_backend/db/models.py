@@ -14,6 +14,15 @@ from pgvector.sqlalchemy import Vector
 from contexthub_backend.db.base import Base
 from contexthub_backend.db.short_id import uuid7
 
+# Supabase provides auth.users externally; register a metadata stub so SQLAlchemy
+# can resolve FK dependencies for ORM flush ordering.
+sa.Table(
+    "users",
+    Base.metadata,
+    sa.Column("id", UUID(as_uuid=True), primary_key=True),
+    schema="auth",
+)
+
 
 # ---------------------------------------------------------------------------
 # Helpers

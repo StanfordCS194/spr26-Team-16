@@ -1,0 +1,25 @@
+{
+  "name": "@contexthub/dashboard",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ContextHub dashboard visual demo built with Next.js App Router.",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet' && exit 0"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.4"
+  }
+}

@@ -69,11 +69,11 @@ Items that must be closed before beta users touch the product.
 
 ---
 
-## This week — Module 4: backend providers
+## This week — Module 9: backend search
 
-_(Module 3 shipped 2026-04-22 — see **Done**. Awaiting review before starting Module 4.)_
+_(Modules 4–8 integration repair shipped 2026-04-23 — see **Done**. Awaiting review before starting Module 9.)_
 
-- [ ] Module 4: `backend/providers` — `LLMProvider` + `EmbeddingProvider` ABCs + `AnthropicProvider` (Claude Haiku 4.5) + `VoyageEmbeddingProvider` (`voyage-3-large`, 1024d) + prompt-version registry. Propose before coding.
+- [ ] Module 9: `backend/search` — hybrid vector + BM25 ranking over summaries, workspace scope, preview highlights.
 
 ## Next up
 
@@ -125,6 +125,17 @@ _(Module 3 shipped 2026-04-22 — see **Done**. Awaiting review before starting 
 ---
 
 ## Done
+
+### Modules 4–8 — integration repair · shipped 2026-04-23
+- [x] Resolved merge conflicts in `backend/contexthub_backend/config.py`, `backend/pyproject.toml`, and regenerated `uv.lock`.
+- [x] Refactored provider contract to `LLMProvider.complete(...)` and `EmbeddingProvider.embed(...)`; added `providers/registry.py`, `providers/anthropic.py`, `providers/voyage.py`, and DI exports `get_llm_provider()` / `get_embedding_provider()`.
+- [x] Added push ingress API route `POST /v1/workspaces/{id}/pushes` in `api/routes/pushes.py` using Module 3 auth and `get_rls_session`; includes scope check, idempotency key, scrub hook, Redis-compatible rate-limit hook, pending push write, transcript write, and ARQ enqueue.
+- [x] Integrated push routes into `api/app.py` so Modules 4–8 run through the shipped app factory instead of a parallel app path.
+- [x] Replaced in-memory pipeline files (`main.py`, `app_state.py`, in-memory repository/queue/router/auth) with DB-backed path and ARQ task registry.
+- [x] Implemented DB-backed jobs in `jobs/tasks.py` for `summarize_push` and `embed_summary`, with status transitions, audit rows, and purge skeleton jobs.
+- [x] Updated services: summarizer fallback/retry behavior + shared renderer usage, embedding upsert into `summary_embeddings`, transcript storage load/store helpers.
+- [x] Added/updated tests for providers and push API integration: `test_providers_unit.py`, `test_providers_contract.py`, `test_pushes_api.py`.
+- [x] Updated CI workflow to include the new provider and push API tests in the python/migrations jobs.
 
 ### Module 3 — `backend/auth` · shipped 2026-04-22
 - [x] `contexthub_backend/config.py` — pydantic-settings (`DATABASE_URL`, `SUPABASE_JWT_SECRET`, `async_database_url` derived property).
