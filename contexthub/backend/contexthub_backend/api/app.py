@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from contexthub_backend.api.errors import (
@@ -37,6 +38,15 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
         version=settings.app_version,
         docs_url="/docs",
         redoc_url=None,
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-Id"],
     )
 
     # Request-ID middleware

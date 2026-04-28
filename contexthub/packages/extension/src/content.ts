@@ -68,6 +68,17 @@ function ensureLauncher() {
   document.body.appendChild(launcher);
 }
 
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== "ctxh:capture") return;
+  const selection = window.getSelection()?.toString() || "";
+  sendResponse({
+    ok: true,
+    selectionText: selection,
+    pageTitle: document.title,
+    pageUrl: window.location.href
+  });
+});
+
 function isClaudeHost() {
   return window.location.hostname === "claude.ai" || window.location.hostname === "www.claude.ai";
 }

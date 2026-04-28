@@ -1,41 +1,28 @@
-const metrics = [
-  { label: "Workspaces", value: "4 active" },
-  { label: "Captured chats", value: "128 total" },
-  { label: "Pending pushes", value: "9 queued" },
-  { label: "Extension tokens", value: "2 live" }
-];
+import { ApiConfig } from "@/components/api-config";
 
 export default function OverviewPage() {
   return (
     <div className="grid" style={{ gap: 18 }}>
       <section className="card">
-        <h1>ContextHub Frontend Demo</h1>
+        <h1>ContextHub Frontend (Connected)</h1>
         <p className="muted">
-          This dashboard is a visual-only mock for workspace management, token
-          lifecycle, and context retrieval.
+          This dashboard now talks to the backend routes you have after Modules 4–8:
+          <code style={{ marginLeft: 8 }}>/v1/me</code>, <code>/v1/tokens</code>, and
+          <code style={{ marginLeft: 8 }}>/v1/workspaces/&lt;id&gt;/pushes</code>.
         </p>
       </section>
 
-      <section className="grid grid-2">
-        {metrics.map((metric) => (
-          <article className="card" key={metric.label}>
-            <p className="muted" style={{ marginBottom: 6 }}>
-              {metric.label}
-            </p>
-            <h3 style={{ margin: 0 }}>{metric.value}</h3>
-          </article>
-        ))}
-      </section>
+      <ApiConfig />
 
       <section className="card">
         <div className="row">
-          <h3 style={{ margin: 0 }}>Demo notes</h3>
-          <span className="pill">No backend wiring</span>
+          <h3 style={{ margin: 0 }}>What’s live right now</h3>
+          <span className="pill">Modules 4–8</span>
         </div>
         <ul className="list" style={{ marginTop: 12 }}>
-          <li>- Use tabs above to walk through the intended user flow.</li>
-          <li>- The extension token shown in Tokens is a UI-only artifact.</li>
-          <li>- Search results are static examples of pull-ready context.</li>
+          <li>- Token mint/list/revoke flows on the Tokens tab.</li>
+          <li>- Push ingestion test form on the Workspaces tab (until workspace listing is added).</li>
+          <li>- Search tab remains a UI shell until pull/search endpoints land.</li>
         </ul>
       </section>
     </div>
