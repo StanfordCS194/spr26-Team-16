@@ -22,7 +22,7 @@ export default function OverviewPage() {
         <ul className="list" style={{ marginTop: 12 }}>
           <li>- Token mint/list/revoke flows on the Tokens tab.</li>
           <li>- Push ingestion test form on the Workspaces tab (until workspace listing is added).</li>
-          <li>- Search tab remains a UI shell until pull/search endpoints land.</li>
+          <li>- Search tab now auto-loads your pushed chats with commit/structured/raw transcript views.</li>
         </ul>
       </section>
     </div>

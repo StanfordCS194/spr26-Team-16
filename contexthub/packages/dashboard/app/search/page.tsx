@@ -1,31 +1,81 @@
-const results = [
-  {
-    title: "Claude context injection checklist",
-    workspace: "Product RFCs",
-    snippet:
-      "Ensure push list item has summary, source URL, and normalized markdown before promoting to retrieval index."
-  },
-  {
-    title: "Prompt quality rubric for architecture Q&A",
-    workspace: "Spring Experiments",
-    snippet:
-      "Use byte-identical renderer outputs so what users preview is exactly what the extension injects."
-  },
-  {
-    title: "Token revocation fallback behavior",
-    workspace: "Claude QA Logs",
-    snippet:
-      "Background worker should display token status warning and disable push actions until renewed."
-  }
-];
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiFetch } from "@/lib/api";
+
+type PushHistoryItem = {
+  id: string;
+  workspace_id: string;
+  title: string | null;
+  status: string;
+  source_platform: string;
+  source_url: string | null;
+  created_at: string;
+  updated_at: string;
+  commit_message: string | null;
+  structured_summary_markdown: string | null;
+  raw_transcript: string | null;
+};
+
+type PushHistoryResponse = { items: PushHistoryItem[] };
 
 export default function SearchPage() {
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<PushHistoryItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | undefined>(undefined);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setRequestId(undefined);
+    const res = await apiFetch<PushHistoryResponse>("/v1/pushes/history?limit=25");
+    if (!res.ok) {
+      setError(res.message);
+      setRequestId(res.requestId);
+      setLoading(false);
+      return;
+    }
+    setItems(res.data.items);
+    setRequestId(res.requestId);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const handler = () => refresh();
+    window.addEventListener("ctxh:config:updated", handler);
+    return () => window.removeEventListener("ctxh:config:updated", handler);
+  }, [refresh]);
+
+  const filteredItems = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return items;
+    return items.filter((item) => {
+      const haystack = [
+        item.title || "",
+        item.commit_message || "",
+        item.structured_summary_markdown || "",
+        item.raw_transcript || ""
+      ]
+        .join("\n")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [items, query]);
+
   return (
     <div className="grid" style={{ gap: 16 }}>
       <section className="card">
-        <h1 style={{ marginTop: 0 }}>Search and pull</h1>
+        <div className="row">
+          <h1 style={{ marginTop: 0, marginBottom: 0 }}>Search and pull</h1>
+          <button className="button secondary" onClick={refresh} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
         <p className="muted">
-          Secondary retrieval UI mock that mirrors extension pull experience.
+          Auto-loaded from your past pushes. Filter locally by title, summaries, or transcript text.
         </p>
         <div className="row">
           <input
@@ -37,24 +87,85 @@ export default function SearchPage() {
               color: "#edf2ff",
               padding: "10px 12px"
             }}
-            value="renderer output consistency"
-            readOnly
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter by keywords from title, summary, or transcript..."
           />
-          <button className="button">Search</button>
         </div>
+        {error ? (
+          <p className="muted" style={{ color: "#ffb4b4" }}>
+            Error: {error} {requestId ? <span>(request {requestId})</span> : null}
+          </p>
+        ) : null}
       </section>
 
       <section className="grid">
-        {results.map((result) => (
-          <article className="card" key={result.title}>
+        {filteredItems.map((item) => (
+          <article className="card" key={item.id}>
             <div className="row">
-              <h3 style={{ margin: 0 }}>{result.title}</h3>
-              <span className="pill">{result.workspace}</span>
+              <h3 style={{ margin: 0 }}>{item.title || "Untitled chat"}</h3>
+              <span className="pill">{item.status}</span>
             </div>
-            <p className="muted">{result.snippet}</p>
-            <button className="button secondary">Pull into draft</button>
+            <p className="muted">
+              Workspace: <code>{item.workspace_id}</code>
+            </p>
+            <p className="muted">
+              Source: {item.source_platform} {item.source_url ? `- ${item.source_url}` : ""}
+            </p>
+            <p className="muted">Created: {new Date(item.created_at).toLocaleString()}</p>
+
+            <div className="grid" style={{ gap: 8 }}>
+              <div>
+                <strong>Commit summary</strong>
+                <p className="muted" style={{ marginTop: 6 }}>
+                  {item.commit_message || "Not available yet (worker may still be processing)."}
+                </p>
+              </div>
+
+              <details>
+                <summary>Structured summary</summary>
+                <pre
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    marginTop: 8,
+                    background: "#0f1830",
+                    border: "1px solid #2f4572",
+                    borderRadius: 8,
+                    padding: 10
+                  }}
+                >
+                  {item.structured_summary_markdown || "Not available yet."}
+                </pre>
+              </details>
+
+              <details>
+                <summary>Raw transcript</summary>
+                <pre
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    marginTop: 8,
+                    background: "#0f1830",
+                    border: "1px solid #2f4572",
+                    borderRadius: 8,
+                    padding: 10,
+                    maxHeight: 320,
+                    overflow: "auto"
+                  }}
+                >
+                  {item.raw_transcript || "Not available."}
+                </pre>
+              </details>
+            </div>
           </article>
         ))}
+
+        {!loading && filteredItems.length === 0 ? (
+          <article className="card">
+            <p className="muted" style={{ margin: 0 }}>
+              No pushed chats found for this user yet.
+            </p>
+          </article>
+        ) : null}
       </section>
     </div>
   );

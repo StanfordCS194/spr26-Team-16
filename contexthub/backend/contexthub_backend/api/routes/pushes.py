@@ -6,7 +6,7 @@ import logging
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,13 +20,14 @@ from contexthub_backend.db.models import (
     AuditLog,
     InterchangeFormatVersion,
     Push,
+    Summary,
     Transcript,
     Workspace,
 )
 from contexthub_backend.ingress.rate_limit import RateLimiter
 from contexthub_backend.ingress.scrub import scrub_sensitive_patterns
 from contexthub_backend.jobs.registry import enqueue_job
-from contexthub_backend.schemas.pushes import PushAccepted
+from contexthub_backend.schemas.pushes import PushAccepted, PushHistoryItem, PushHistoryResponse
 from contexthub_backend.services.storage import TranscriptStorageService
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,17 @@ def _idempotency_key(conversation: ConversationV0, incoming_key: str | None) -> 
         return incoming_key
     payload = json.dumps(conversation.model_dump(mode="json"), sort_keys=True).encode()
     return hashlib.sha256(payload).hexdigest()
+
+
+def _summary_text(summary: Summary | None) -> str | None:
+    if summary is None:
+        return None
+    text = summary.content_json.get("text")
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+    if summary.content_markdown and summary.content_markdown.strip():
+        return summary.content_markdown.strip()
+    return None
 
 
 @router.post(
@@ -148,4 +160,71 @@ async def create_push(
             request_id=request_id,
             scrub_flags=[],
         )
+
+
+@router.get("/pushes/history", response_model=PushHistoryResponse)
+async def get_push_history(
+    user: Annotated[AuthUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_rls_session)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 25,
+) -> PushHistoryResponse:
+    """Return recent pushes for the authenticated user with summaries and transcript."""
+    user.require_scope("read")
+
+    pushes_result = await session.execute(
+        select(Push)
+        .where(Push.user_id == user.user_id)
+        .order_by(Push.created_at.desc())
+        .limit(limit)
+    )
+    pushes = pushes_result.scalars().all()
+    if not pushes:
+        return PushHistoryResponse(items=[])
+
+    push_ids = [push.id for push in pushes]
+
+    summaries_result = await session.execute(
+        select(Summary).where(Summary.push_id.in_(push_ids))
+    )
+    summaries_by_push: dict[uuid.UUID, dict[str, Summary]] = {}
+    for summary in summaries_result.scalars().all():
+        summaries_by_push.setdefault(summary.push_id, {})[summary.layer] = summary
+
+    transcript_result = await session.execute(
+        select(Transcript).where(Transcript.push_id.in_(push_ids))
+    )
+    transcripts_by_push = {row.push_id: row for row in transcript_result.scalars().all()}
+
+    items: list[PushHistoryItem] = []
+    for push in pushes:
+        summary_layers = summaries_by_push.get(push.id, {})
+        transcript = transcripts_by_push.get(push.id)
+        raw_transcript: str | None = None
+        if transcript is not None:
+            try:
+                conversation = await storage.load_transcript(transcript.storage_path)
+                raw_transcript = json.dumps(conversation.model_dump(mode="json"), indent=2)
+            except Exception:
+                # If storage is unavailable, still return push metadata/summaries.
+                raw_transcript = None
+
+        items.append(
+            PushHistoryItem(
+                id=str(push.id),
+                workspace_id=str(push.workspace_id),
+                title=push.title,
+                status=push.status,
+                source_platform=push.source_platform,
+                source_url=push.source_url,
+                created_at=push.created_at,
+                updated_at=push.updated_at,
+                commit_message=_summary_text(summary_layers.get("commit_message")),
+                structured_summary_markdown=summary_layers.get("structured_block").content_markdown
+                if summary_layers.get("structured_block")
+                else None,
+                raw_transcript=raw_transcript,
+            )
+        )
+
+    return PushHistoryResponse(items=items)
 

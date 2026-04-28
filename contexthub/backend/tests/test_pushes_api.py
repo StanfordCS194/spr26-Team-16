@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 
 import psycopg
@@ -122,3 +123,75 @@ async def test_rls_user_a_cannot_push_to_user_b_workspace(client, push_users_and
         json=_push_payload(),
     )
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_history_returns_only_callers_pushes_with_summaries(client, async_engine, push_users_and_workspaces):
+    ws_a = push_users_and_workspaces["ws_a"]
+    ws_b = push_users_and_workspaces["ws_b"]
+    user_a = push_users_and_workspaces["user_a"]
+    user_b = push_users_and_workspaces["user_b"]
+
+    push_a_resp = await client.post(
+        f"/v1/workspaces/{ws_a}/pushes",
+        headers={"Authorization": f"Bearer {_jwt(user_a)}", "Idempotency-Key": "idem-history-a"},
+        json=_push_payload(),
+    )
+    assert push_a_resp.status_code == 202
+    push_a_id = push_a_resp.json()["push_id"]
+
+    push_b_resp = await client.post(
+        f"/v1/workspaces/{ws_b}/pushes",
+        headers={"Authorization": f"Bearer {_jwt(user_b)}", "Idempotency-Key": "idem-history-b"},
+        json=_push_payload(),
+    )
+    assert push_b_resp.status_code == 202
+
+    async with async_engine.begin() as conn:
+        await conn.execute(
+            text(
+                """
+                insert into summaries (push_id, layer, content_json, content_markdown, model, prompt_version)
+                values
+                  (:push_id, 'commit_message', cast(:commit_json as jsonb), :commit_md, 'fake-llm', 'summarize_v1'),
+                  (:push_id, 'structured_block', cast(:structured_json as jsonb), :structured_md, 'fake-llm', 'summarize_v1')
+                """
+            ),
+            {
+                "push_id": push_a_id,
+                "commit_json": json.dumps({"text": "History test commit summary"}),
+                "commit_md": "History test commit summary",
+                "structured_json": json.dumps(
+                    {
+                        "spec_version": "ch.v0.1",
+                        "decisions": [],
+                        "artifacts": [],
+                        "open_questions": [],
+                        "assumptions": [],
+                        "constraints": [],
+                    }
+                ),
+                "structured_md": "## Decisions\n\n- none\n",
+            },
+        )
+
+    response = await client.get(
+        "/v1/pushes/history?limit=25",
+        headers={"Authorization": f"Bearer {_jwt(user_a)}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "items" in body
+    assert len(body["items"]) >= 1
+
+    matching = [item for item in body["items"] if item["id"] == push_a_id]
+    assert len(matching) == 1
+    item = matching[0]
+    assert item["workspace_id"] == str(ws_a)
+    assert item["commit_message"] == "History test commit summary"
+    assert item["structured_summary_markdown"] == "## Decisions\n\n- none\n"
+    assert "Summarize this thread" in (item["raw_transcript"] or "")
+
+    # Caller should not see other users' pushes.
+    assert all(entry["workspace_id"] != str(ws_b) for entry in body["items"])
