@@ -31,7 +31,7 @@ class LLMProvider(Protocol):
         prompt: str,
         *,
         response_format: Literal["json", "text"] = "json",
-        max_tokens: int = 1600,
+        max_tokens: int = 4096,
         temperature: float = 0.0,
     ) -> LLMResponse: ...
 

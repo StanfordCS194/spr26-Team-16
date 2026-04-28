@@ -62,7 +62,7 @@ class FakeEmbeddingProvider(EmbeddingProvider):
         vectors: list[list[float]] = []
         for text in texts:
             base = float(len(text) % 17)
-            vectors.append([base, base + 1.0, base + 2.0])
+            vectors.append([base + float(i % 7) for i in range(1024)])
         return EmbeddingResponse(
             vectors=vectors,
             model="fake-embedding",

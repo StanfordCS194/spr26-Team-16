@@ -18,6 +18,15 @@ class Settings(BaseSettings):
 
     # Modules 4-8 settings.
     app_env: str = "dev"
+    ai_gateway_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AI_GATEWAY_API_KEY", "VERCEL_AI_GATEWAY_API_KEY"),
+    )
+    ai_gateway_base_url: str = "https://ai-gateway.vercel.sh/v1"
+    ai_gateway_llm_model: str = "deepseek/deepseek-v4-flash"
+    ai_gateway_embedding_model: str = "voyage/voyage-3.5-lite"
+    ai_gateway_embedding_dimensions: int = 1024
+    ai_gateway_json_mode: bool = False
     anthropic_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("ANTHROPIC_API_KEY", "CH_ANTHROPIC_API_KEY"),

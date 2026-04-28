@@ -411,14 +411,16 @@ Why:
 
 Recommended Vercel AI Gateway addition:
 
-- Add `VercelGatewayLLMProvider`.
-- Add `VercelGatewayEmbeddingProvider`.
-- Add settings:
+- `VercelGatewayLLMProvider` and `VercelGatewayEmbeddingProvider` are wired through the provider factory.
+- Set these environment variables to use AI Gateway:
   - `ai_gateway_api_key`
   - `ai_gateway_base_url`
   - `ai_gateway_llm_model`
   - `ai_gateway_embedding_model`
-- Update factory selection so gateway wins when `AI_GATEWAY_API_KEY` exists.
+  - `ai_gateway_embedding_dimensions`
+- The factory selects AI Gateway when `AI_GATEWAY_API_KEY` exists.
+- The default cheap testing setup is `AI_GATEWAY_LLM_MODEL=deepseek/deepseek-v4-flash` and `AI_GATEWAY_EMBEDDING_MODEL=voyage/voyage-3.5-lite`. Vercel AI Gateway currently exposes the lite Voyage line under the 3.5/4 model IDs, not `voyage/voyage-3-lite`.
+- Keep `AI_GATEWAY_EMBEDDING_DIMENSIONS=1024` while the database column remains `summary_embeddings.embedding vector(1024)`. The gateway embedding adapter pads or truncates vectors to the configured storage dimension if a future model returns a different size.
 
 Do not:
 

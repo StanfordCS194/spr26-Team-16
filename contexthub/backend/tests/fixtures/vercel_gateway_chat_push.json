@@ -1,0 +1,49 @@
+{
+  "spec_version": "ch.v0.1",
+  "source": {
+    "platform": "claude_ai",
+    "captured_at": "2026-04-27T09:30:00Z",
+    "conversation_id": "local-vercel-gateway-chat"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "For my current project, instead of using a fake llm, I want it to connect to real apis. I want to do this through vercel, please let me know how vercel apis work and how I can connect my current project onto vercel"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Based on the documentation you provided for ContextHub, you are currently using Vercel to host your Next.js 15 App Router dashboard, while your backend is configured as a Python FastAPI application hosted on Railway. Moving from fake LLMs to real APIs via Vercel is a fantastic upgrade.\n\nHere is a breakdown of how Vercel APIs work and how you can connect your project to real LLMs (like Claude for summarization and Voyage for embeddings) using Vercel.\n\nHow Vercel APIs Work\nWhen you deploy a Next.js application on Vercel, you can build server-side endpoints using Route Handlers (files named route.ts inside your app/api directory).\n\nServerless Execution: These functions run securely on the server side on demand. This means you can safely store and use your API keys (like your Anthropic or Voyage keys) as environment variables without ever exposing them to the user's browser.\n\nVercel AI SDK: Vercel provides a purpose-built, open-source toolkit called the Vercel AI SDK. It abstracts away the complexity of different AI providers into a single, unified interface. Instead of writing custom API integration code for Anthropic, OpenAI, or Voyage, you use one standardized method and simply swap out the provider string.\n\nHow to Connect ContextHub to Real APIs on Vercel\nSince your architecture calls for LLMProvider + Embedding Provider abstractions using Claude Haiku 4.5 and Voyage voyage-3-large, here is how you can implement that natively in Vercel:\n\n1. Install the Vercel AI SDK and Providers\nIn your Next.js dashboard workspace, install the core AI package and the specific provider packages you need:\n\nnpm install ai @ai-sdk/anthropic\n\n2. Configure Environment Variables\nIn your Vercel project dashboard, navigate to the Settings tab and add your real API keys as Environment Variables (e.g., ANTHROPIC_API_KEY and VOYAGE_API_KEY). Vercel encrypts these securely, making them automatically available to your Next.js Route Handlers in production.\n\n3. Create an API Route\nCreate a new Route Handler in your Next.js project to handle the Push summarization logic. For example, create a file at app/api/summarize/route.ts:\n\nimport { anthropic } from '@ai-sdk/anthropic';\nimport { generateText } from 'ai';\n\nexport async function POST(req: Request) {\n  const { conversationTranscript } = await req.json();\n\n  const { text } = await generateText({\n    model: anthropic('claude-3-5-haiku-latest'),\n    prompt: `Summarize the following conversation: ${conversationTranscript}`,\n  });\n\n  return Response.json({ summary: text });\n}\n\n4. Call the Vercel API from your Frontend\nInside your React components (or your browser extension), you can now simply make a standard fetch call to /api/summarize and pass the transcript payload.\n\nGiven that ContextHub's initial architecture specified using a Python FastAPI backend on Railway for handling jobs and Postgres database routing, are you planning to migrate the core LLM execution logic entirely into these Vercel Next.js routes, or will Vercel simply act as a proxy to pass the data down to your Python backend?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "can I use vercel's credit to directly access for example anthropic's api? without me directly paying anthropic"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Yes, absolutely. You can use Vercel's billing to access Anthropic and other models directly, without needing to create an account with Anthropic or pay them directly.\n\nVercel recently introduced a feature called Vercel AI Gateway, which is designed to do exactly this.\n\nHere is how it works and how you can use it for your project:\n\n1. How Vercel AI Gateway Billing Works\nInstead of juggling API keys and separate credit card bills for Anthropic, OpenAI, Voyage, etc., Vercel acts as a unified proxy:\n\nUnified Billing: You purchase AI Gateway Credits directly through Vercel. All your LLM usage (whether Anthropic, Google, or others) draws from this single pool of Vercel credits.\n\nNo Markup: Vercel charges you the exact list price for Anthropic tokens (e.g., standard rates per million input/output tokens). They do not add any markup for passing the request through.\n\nFree Tier: New Vercel teams get $5 of free AI Gateway credits every 30 days to experiment. Once you make your first manual top-up, you transition to pay-as-you-go.\n\nZero Data Retention (ZDR): You can toggle ZDR to ensure Anthropic doesn't train on your prompts (though note that Vercel charges a tiny $0.10 per 1,000 requests platform fee if you want ZDR applied team-wide).\n\n2. How to Set It Up for ContextHub\nSince you want ContextHub to interact with Claude 3.5 Haiku through Vercel, you can swap out the standard SDK for the AI Gateway.\n\nStep 1: Enable AI Gateway in Vercel\nGo to your Vercel Dashboard -> AI Gateway tab. If you haven't used it before, your $5 free monthly credit will activate upon your first request. You can also set up auto-reload to top up your credits from your Vercel payment method when the balance gets low.\n\nStep 2: Generate a Gateway Key\nIn the AI Gateway dashboard, generate an AI Gateway API Key. You will save this in your Vercel environment variables as something like VERCEL_AI_GATEWAY_KEY.\n\nStep 3: Update your Code\nYou can use the Vercel AI SDK to point directly at the Vercel AI Gateway endpoint rather than the Anthropic endpoint. You don't even need the @ai-sdk/anthropic specific package if you use the gateway configuration.\n\nHere is what your Next.js route handler (app/api/summarize/route.ts) would look like:\n\nimport { createOpenAI } from '@ai-sdk/openai';\nimport { generateText } from 'ai';\n\nconst gateway = createOpenAI({\n  baseURL: 'https://gateway.model.vercel.com/v1',\n  apiKey: process.env.VERCEL_AI_GATEWAY_KEY,\n});\n\nexport async function POST(req: Request) {\n  const { conversationTranscript } = await req.json();\n\n  const { text } = await generateText({\n    model: gateway('anthropic/claude-3-5-haiku-latest'),\n    prompt: `Summarize the following conversation: ${conversationTranscript}`,\n  });\n\n  return Response.json({ summary: text });\n}\n\nBy doing it this way, you only manage billing inside your Vercel dashboard, and you can instantly swap anthropic/claude-3-5-haiku-latest to google/gemini-2.5-flash or another model without changing your billing setups."
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "title": "Vercel AI Gateway setup discussion"
+  }
+}

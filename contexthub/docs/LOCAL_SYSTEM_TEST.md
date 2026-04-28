@@ -38,6 +38,45 @@ export USER_ID=11111111-1111-1111-1111-111111111111
 export WORKSPACE_ID=22222222-2222-2222-2222-222222222222
 ```
 
+You can also store these values in `contexthub/backend/.env`. This file is ignored by git via `contexthub/.gitignore`; do not commit real secrets.
+
+```bash
+cat > .env <<'EOF'
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/contexthub_dev
+SUPABASE_JWT_SECRET=test-secret-not-for-production-at-least-32-bytes
+REDIS_URL=redis://localhost:6379
+USER_ID=11111111-1111-1111-1111-111111111111
+WORKSPACE_ID=22222222-2222-2222-2222-222222222222
+
+# Optional live AI via Vercel AI Gateway:
+# AI_GATEWAY_API_KEY=<your-vercel-ai-gateway-key>
+# AI_GATEWAY_BASE_URL=https://ai-gateway.vercel.sh/v1
+# AI_GATEWAY_LLM_MODEL=deepseek/deepseek-v4-flash
+# AI_GATEWAY_EMBEDDING_MODEL=voyage/voyage-3.5-lite
+# AI_GATEWAY_EMBEDDING_DIMENSIONS=1024
+# AI_GATEWAY_JSON_MODE=false
+EOF
+```
+
+To load it into your current shell:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+To use Vercel AI Gateway instead of fake providers, also export these values. Do not commit real keys to the repo.
+
+```bash
+export AI_GATEWAY_API_KEY=<your-vercel-ai-gateway-key>
+export AI_GATEWAY_BASE_URL=https://ai-gateway.vercel.sh/v1
+export AI_GATEWAY_LLM_MODEL=deepseek/deepseek-v4-flash
+export AI_GATEWAY_EMBEDDING_MODEL=voyage/voyage-3.5-lite
+export AI_GATEWAY_EMBEDDING_DIMENSIONS=1024
+export AI_GATEWAY_JSON_MODE=false
+```
+
 ## 3. Initialize Database
 
 ```bash
@@ -96,9 +135,9 @@ JWT segments: 3
 Open a new terminal in `contexthub/backend` and run:
 
 ```bash
-export DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/contexthub_dev
-export SUPABASE_JWT_SECRET=test-secret-not-for-production-at-least-32-bytes
-export REDIS_URL=redis://localhost:6379
+set -a
+source .env
+set +a
 
 uv run --package contexthub-backend --with uvicorn \
   uvicorn contexthub_backend.api.app:create_app --factory --host 0.0.0.0 --port 8000
@@ -116,8 +155,9 @@ curl -sS http://localhost:8000/v1/me -H "Authorization: Bearer $JWT"
 Open another new terminal in `contexthub/backend` and run:
 
 ```bash
-export DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/contexthub_dev
-export REDIS_URL=redis://localhost:6379
+set -a
+source .env
+set +a
 
 uv run --package contexthub-backend python -c "from contexthub_backend.jobs.worker import start_worker; start_worker()"
 ```

@@ -29,7 +29,9 @@ async def summarize_push(
 ) -> str:
     engine = make_async_engine(settings.async_database_url)
     storage = TranscriptStorageService(bucket=settings.transcript_bucket)
-    llm = get_llm_provider(mode="live" if settings.anthropic_api_key else "fake")
+    llm = get_llm_provider(
+        mode="live" if (settings.ai_gateway_api_key or settings.anthropic_api_key) else "fake"
+    )
     try:
         async with AsyncSession(engine) as session:
             async with session.begin():
@@ -142,7 +144,9 @@ async def embed_summary(
 ) -> str:
     _ = ctx
     engine = make_async_engine(settings.async_database_url)
-    embedder = get_embedding_provider(mode="live" if settings.voyage_api_key else "fake")
+    embedder = get_embedding_provider(
+        mode="live" if (settings.ai_gateway_api_key or settings.voyage_api_key) else "fake"
+    )
     try:
         async with AsyncSession(engine) as session:
             async with session.begin():

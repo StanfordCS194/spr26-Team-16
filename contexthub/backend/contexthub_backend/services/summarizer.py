@@ -40,6 +40,25 @@ def _build_prompt(conversation: ConversationV0, prompt_version: str) -> str:
     return f"{prompt}\nConversation JSON:\n{conversation_json}"
 
 
+def _extract_json_object(text: str) -> dict:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise
+        return json.loads(stripped[start : end + 1])
+
+
 async def summarize_push(
     conversation: ConversationV0,
     *,
@@ -51,16 +70,16 @@ async def summarize_push(
         response = await llm.complete(
             _build_prompt(conversation, prompt_version),
             response_format="json",
-            max_tokens=1600,
+            max_tokens=4096,
             temperature=0.1,
         )
         try:
-            payload = json.loads(response.text)
+            payload = _extract_json_object(response.text)
             structured = StructuredBlockV0.model_validate(payload["structured_block"])
             return ThreeLayerSummary(
                 commit_message=payload["commit_message"],
                 structured_block=structured,
-                raw_transcript=payload.get("raw_transcript", ""),
+                raw_transcript="",
                 model=response.model,
                 prompt_version=response.prompt_version,
                 input_tokens=response.input_tokens,
@@ -70,7 +89,8 @@ async def summarize_push(
                 failure_reason=response.failure_reason,
             )
         except (KeyError, json.JSONDecodeError, PydanticValidationError) as exc:
-            failure_reason = f"invalid_summary_json: {exc}"
+            snippet = response.text[:500].replace("\n", "\\n")
+            failure_reason = f"invalid_summary_json: {exc}; response_snippet={snippet}"
 
     fallback_block = StructuredBlockV0(
         spec_version="ch.v0.1",
