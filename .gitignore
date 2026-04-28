@@ -1,1 +1,3 @@
 contexthub/backend/.contexthub_storage/
+# Next.js
+.next/
