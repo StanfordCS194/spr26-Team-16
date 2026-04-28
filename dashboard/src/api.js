@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:8001";
 
 export async function fetchThreads(limit = 20, offset = 0) {
   const res = await fetch(`${API_BASE}/api/threads?limit=${limit}&offset=${offset}`);
@@ -39,5 +39,21 @@ export async function fetchStats() {
 export async function retryExtraction(id) {
   const res = await fetch(`${API_BASE}/api/threads/${id}/retry`, { method: "POST" });
   if (!res.ok) throw new Error(`Failed to retry extraction: ${res.status}`);
+  return res.json();
+}
+
+export async function updateThread(id, patch) {
+  const res = await fetch(`${API_BASE}/api/threads/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`Failed to update thread: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchFolders() {
+  const res = await fetch(`${API_BASE}/api/folders`);
+  if (!res.ok) throw new Error(`Failed to fetch folders: ${res.status}`);
   return res.json();
 }

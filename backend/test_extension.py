@@ -91,7 +91,7 @@ def test_icon_files_are_png():
 def test_background_js_has_api_base():
     with open(os.path.join(EXTENSION_DIR, "background.js")) as f:
         content = f.read()
-    assert "http://localhost:8000" in content
+    assert "http://localhost:8001" in content
     assert "api/threads" in content
 
 
@@ -227,12 +227,12 @@ def test_popup_css_has_required_styles():
 
 
 def test_popup_js_has_pull_handler():
-    """Popup JS should have a pull button handler that sends context."""
+    """Popup JS should have a pull button handler that injects context."""
     with open(os.path.join(EXTENSION_DIR, "popup/popup.js")) as f:
         content = f.read()
     assert "pull-btn" in content
     assert "inject_context" in content
-    assert "Sent!" in content
+    assert "Injected" in content
 
 
 def test_popup_has_pull_button():

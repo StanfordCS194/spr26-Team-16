@@ -1,13 +1,16 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import ThreadList from './components/ThreadList';
+import AppShell from './components/AppShell';
 import ThreadDetail from './components/ThreadDetail';
+import EmptyDetail from './components/EmptyDetail';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<ThreadList />} />
-        <Route path="/thread/:id" element={<ThreadDetail />} />
+        <Route element={<AppShell />}>
+          <Route path="/" element={<EmptyDetail />} />
+          <Route path="/thread/:id" element={<ThreadDetail />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

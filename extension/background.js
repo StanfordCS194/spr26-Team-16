@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:8001";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "push") {

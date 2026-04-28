@@ -1,7 +1,8 @@
-import anthropic
 import json
 import os
 from pathlib import Path
+
+from openai import OpenAI
 
 EXTRACTION_PROMPT = """You are extracting structured context from a conversation between a user and an AI assistant. Your output will be used in two ways:
 
@@ -123,22 +124,23 @@ def load_transcript(transcript_path: str) -> list[dict]:
 
 def extract_context(messages: list[dict]) -> dict:
     """
-    Send the conversation to Claude Sonnet 4.5 and get structured extraction.
+    Send the conversation to OpenAI and get structured extraction.
 
     Returns dict with: title, conversation_type, summary, key_takeaways,
     artifacts, open_threads, tags
 
     Raises:
         ValueError: If the API response can't be parsed as valid JSON
-        anthropic.APIError: If the API call fails
+        openai.OpenAIError: If the API call fails
     """
     conversation_text = format_conversation(messages)
 
-    client = anthropic.Anthropic()
+    client = OpenAI()
 
-    response = client.messages.create(
-        model="claude-sonnet-4-5-20250929",
+    response = client.chat.completions.create(
+        model="gpt-4o",
         max_tokens=8192,
+        response_format={"type": "json_object"},
         messages=[
             {
                 "role": "user",
@@ -147,7 +149,7 @@ def extract_context(messages: list[dict]) -> dict:
         ],
     )
 
-    raw_text = response.content[0].text
+    raw_text = response.choices[0].message.content
 
     # Strip markdown fences if present
     if raw_text.startswith("```"):
@@ -202,10 +204,10 @@ def extract_context_mock(messages: list[dict]) -> dict:
     return {
         "title": f"Conversation ({len(messages)} messages)",
         "conversation_type": "other",
-        "summary": f"A conversation with {len(messages)} messages. Set ANTHROPIC_API_KEY to enable real extraction.",
+        "summary": f"A conversation with {len(messages)} messages. Set OPENAI_API_KEY to enable real extraction.",
         "key_takeaways": [
             "This is mock extraction data",
-            "Set ANTHROPIC_API_KEY to enable real extraction",
+            "Set OPENAI_API_KEY to enable real extraction",
         ],
         "artifacts": [],
         "open_threads": ["Enable real extraction by adding API key"],
@@ -224,7 +226,7 @@ def process_thread(thread_id: str, messages: list[dict], use_mock: bool = False)
     """
     transcript_path = save_transcript(thread_id, messages)
 
-    if use_mock or not os.environ.get("ANTHROPIC_API_KEY"):
+    if use_mock or not os.environ.get("OPENAI_API_KEY"):
         extracted = extract_context_mock(messages)
     else:
         extracted = extract_context(messages)

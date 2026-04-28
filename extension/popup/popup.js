@@ -158,7 +158,7 @@ async function loadRecent() {
 
           if (!injectResult.success) throw new Error(injectResult.error);
 
-          btn.textContent = "\u2713 Sent!";
+          btn.textContent = "\u2713 Injected";
           btn.className = "pull-btn sent";
           setTimeout(() => {
             btn.textContent = "Pull into Chat";

@@ -19,7 +19,7 @@ export default function ThreadList() {
         setLoading(false);
       })
       .catch(err => {
-        setError("Can't connect to server. Make sure the backend is running on port 8000.");
+        setError("Can't connect to server. Make sure the backend is running on port 8001.");
         setLoading(false);
       });
   }, []);

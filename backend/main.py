@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database import engine, Base, get_db
@@ -29,6 +30,14 @@ app.add_middleware(
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    # One-shot migration: add `folder` column to existing `threads` tables.
+    # SQLAlchemy's create_all won't ALTER existing tables, so add it manually
+    # if missing.
+    with engine.begin() as conn:
+        cols = conn.execute(text("PRAGMA table_info(threads)")).fetchall()
+        col_names = {row[1] for row in cols}
+        if "folder" not in col_names:
+            conn.execute(text("ALTER TABLE threads ADD COLUMN folder TEXT"))
 
 
 def format_summary_context(t: dict) -> str:
@@ -261,6 +270,44 @@ def retry_extraction(thread_id: str, db: Session = Depends(get_db)):
     db.refresh(thread)
 
     return thread.to_dict()
+
+
+@app.patch("/api/threads/{thread_id}")
+def update_thread(thread_id: str, data: dict, db: Session = Depends(get_db)):
+    """Patch a thread. Currently only `folder` (string or null) is supported."""
+    thread = db.query(Thread).filter(Thread.id == thread_id).first()
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    if "folder" in data:
+        folder = data["folder"]
+        if folder is not None and not isinstance(folder, str):
+            raise HTTPException(status_code=400, detail="folder must be a string or null")
+        if isinstance(folder, str):
+            folder = folder.strip()
+            if folder == "":
+                folder = None
+        thread.folder = folder
+
+    thread.updated_at = datetime.utcnow().isoformat()
+    db.commit()
+    db.refresh(thread)
+    return thread.to_dict()
+
+
+@app.get("/api/folders")
+def list_folders(db: Session = Depends(get_db)):
+    """Return all distinct, non-null folder names with their thread counts."""
+    rows = (
+        db.query(Thread.folder)
+        .filter(Thread.folder.isnot(None))
+        .all()
+    )
+    counts = {}
+    for (folder,) in rows:
+        counts[folder] = counts.get(folder, 0) + 1
+    folders = [{"name": name, "count": count} for name, count in sorted(counts.items())]
+    return {"folders": folders}
 
 
 @app.get("/api/stats")

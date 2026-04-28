@@ -12,8 +12,8 @@ ContextHub captures Claude conversations, extracts structured context via the Cl
 ```bash
 cd backend && source venv/bin/activate
 
-# Run server (port 8000)
-uvicorn main:app --reload --port 8000
+# Run server (port 8001)
+uvicorn main:app --reload --port 8001
 
 # Run all backend tests
 python -m pytest test_backend.py -v
@@ -62,7 +62,7 @@ Load unpacked from `extension/` directory in `chrome://extensions` with Develope
 
 ### Dashboard (`dashboard/`)
 - Tailwind CSS v4 via `@tailwindcss/vite` plugin (NOT config files). CSS uses `@import "tailwindcss"`.
-- `src/api.js` — all fetch calls to `http://localhost:8000`.
+- `src/api.js` — all fetch calls to `http://localhost:8001`.
 - Routes: `/` → `ThreadList`, `/thread/:id` → `ThreadDetail`.
 - `src/utils/formatContext.js` — formats thread into clipboard-ready context block with smart artifact handling (≤3 inline, >3 shows count note).
 

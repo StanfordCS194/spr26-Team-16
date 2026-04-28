@@ -20,6 +20,7 @@ class Thread(Base):
     extraction_status = Column(Text, default="pending")
     extraction_error = Column(Text)
     message_count = Column(Integer)
+    folder = Column(Text)  # nullable; threads with NULL show under "Unfiled"
     created_at = Column(Text)
     updated_at = Column(Text)
 
@@ -39,6 +40,7 @@ class Thread(Base):
             "extraction_status": self.extraction_status,
             "extraction_error": self.extraction_error,
             "message_count": self.message_count,
+            "folder": self.folder,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

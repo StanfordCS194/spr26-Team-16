@@ -155,7 +155,7 @@ function findInputField() {
   return null;
 }
 
-function injectIntoInput(text) {
+function injectIntoInput(text, { trailingBlankLines = 0 } = {}) {
   const input = findInputField();
   if (!input) {
     return { success: false, error: "Could not find chat input field" };
@@ -164,14 +164,21 @@ function injectIntoInput(text) {
   try {
     input.focus();
 
+    const padded = text + "\n".repeat(trailingBlankLines);
+
     if (input.tagName === "TEXTAREA") {
-      input.value = text;
+      input.value = padded;
       input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.selectionStart = input.selectionEnd = input.value.length;
     } else {
       // contenteditable — set content as <p> elements
-      const paragraphs = text.split("\n").map((line) => {
+      const paragraphs = padded.split("\n").map((line) => {
         const p = document.createElement("p");
-        p.textContent = line;
+        if (line === "") {
+          p.appendChild(document.createElement("br"));
+        } else {
+          p.textContent = line;
+        }
         return p;
       });
       input.innerHTML = "";
@@ -179,12 +186,18 @@ function injectIntoInput(text) {
 
       // Dispatch InputEvent to sync React state
       input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
-    }
 
-    // Move cursor to end
-    const selection = window.getSelection();
-    selection.selectAllChildren(input);
-    selection.collapseToEnd();
+      // Place caret in the final (empty) paragraph so the user can start typing
+      const lastP = input.lastElementChild;
+      if (lastP) {
+        const range = document.createRange();
+        range.selectNodeContents(lastP);
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
 
     return { success: true };
   } catch (err) {
@@ -333,10 +346,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === "inject_context") {
-    injectAndSend(request.text)
-      .then((result) => sendResponse(result))
-      .catch((err) => sendResponse({ success: false, error: err.message }));
-    return true; // Keep channel open for async response
+    // Inject only — do NOT auto-send. Leave two blank lines so the user can
+    // type their query below the context.
+    try {
+      const result = injectIntoInput(request.text, { trailingBlankLines: 2 });
+      sendResponse(result);
+    } catch (err) {
+      sendResponse({ success: false, error: err.message });
+    }
+    return false;
   }
 
   if (request.action === "inject_memory") {

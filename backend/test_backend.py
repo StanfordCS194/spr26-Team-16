@@ -143,7 +143,7 @@ def test_create_thread_empty_messages():
 
 @patch(
     "main.extract_context",
-    side_effect=Exception("Anthropic API rate limited"),
+    side_effect=Exception("OpenAI API rate limited"),
 )
 def test_create_thread_extraction_failure(mock_extract):
     """POST /api/threads should still return 201 even if extraction fails."""
@@ -490,15 +490,22 @@ def test_extraction_prompt_exists():
     assert "tags" in EXTRACTION_PROMPT
 
 
-@patch("extraction.anthropic.Anthropic")
-def test_extract_context_parses_json(mock_anthropic_cls):
+def _mock_openai_response(text: str) -> MagicMock:
+    """Build a MagicMock that mimics openai chat.completions.create response shape."""
+    response = MagicMock()
+    response.choices = [MagicMock(message=MagicMock(content=text))]
+    return response
+
+
+@patch("extraction.OpenAI")
+def test_extract_context_parses_json(mock_openai_cls):
     """extract_context should parse the API response as JSON."""
     mock_client = MagicMock()
-    mock_anthropic_cls.return_value = mock_client
+    mock_openai_cls.return_value = mock_client
 
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text=json.dumps(MOCK_EXTRACTION_RESULT))]
-    mock_client.messages.create.return_value = mock_response
+    mock_client.chat.completions.create.return_value = _mock_openai_response(
+        json.dumps(MOCK_EXTRACTION_RESULT)
+    )
 
     from extraction import extract_context
 
@@ -511,16 +518,14 @@ def test_extract_context_parses_json(mock_anthropic_cls):
     assert len(result["open_threads"]) == 1
 
 
-@patch("extraction.anthropic.Anthropic")
-def test_extract_context_strips_markdown_fences(mock_anthropic_cls):
+@patch("extraction.OpenAI")
+def test_extract_context_strips_markdown_fences(mock_openai_cls):
     """extract_context should strip ```json fences from response."""
     mock_client = MagicMock()
-    mock_anthropic_cls.return_value = mock_client
+    mock_openai_cls.return_value = mock_client
 
     fenced = f"```json\n{json.dumps(MOCK_EXTRACTION_RESULT)}\n```"
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text=fenced)]
-    mock_client.messages.create.return_value = mock_response
+    mock_client.chat.completions.create.return_value = _mock_openai_response(fenced)
 
     from extraction import extract_context
 
@@ -528,16 +533,16 @@ def test_extract_context_strips_markdown_fences(mock_anthropic_cls):
     assert result["title"] == "Auth System Design with JWT Tokens"
 
 
-@patch("extraction.anthropic.Anthropic")
-def test_extract_context_validates_conversation_type(mock_anthropic_cls):
+@patch("extraction.OpenAI")
+def test_extract_context_validates_conversation_type(mock_openai_cls):
     """extract_context should default invalid conversation_type to 'other'."""
     mock_client = MagicMock()
-    mock_anthropic_cls.return_value = mock_client
+    mock_openai_cls.return_value = mock_client
 
     bad_result = {**MOCK_EXTRACTION_RESULT, "conversation_type": "invalid_type"}
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text=json.dumps(bad_result))]
-    mock_client.messages.create.return_value = mock_response
+    mock_client.chat.completions.create.return_value = _mock_openai_response(
+        json.dumps(bad_result)
+    )
 
     from extraction import extract_context
 
@@ -545,11 +550,11 @@ def test_extract_context_validates_conversation_type(mock_anthropic_cls):
     assert result["conversation_type"] == "other"
 
 
-@patch("extraction.anthropic.Anthropic")
-def test_extract_context_validates_artifacts(mock_anthropic_cls):
+@patch("extraction.OpenAI")
+def test_extract_context_validates_artifacts(mock_openai_cls):
     """extract_context should validate artifact structure."""
     mock_client = MagicMock()
-    mock_anthropic_cls.return_value = mock_client
+    mock_openai_cls.return_value = mock_client
 
     result_with_bad_artifact = {
         **MOCK_EXTRACTION_RESULT,
@@ -559,9 +564,9 @@ def test_extract_context_validates_artifacts(mock_anthropic_cls):
             "not even a dict",  # invalid
         ],
     }
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text=json.dumps(result_with_bad_artifact))]
-    mock_client.messages.create.return_value = mock_response
+    mock_client.chat.completions.create.return_value = _mock_openai_response(
+        json.dumps(result_with_bad_artifact)
+    )
 
     from extraction import extract_context
 
@@ -667,16 +672,16 @@ def test_validate_extraction_too_long_title():
     assert any("unusually long" in w for w in warnings)
 
 
-@patch("extraction.anthropic.Anthropic")
-@patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"})
-def test_process_thread(mock_anthropic_cls):
+@patch("extraction.OpenAI")
+@patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"})
+def test_process_thread(mock_openai_cls):
     """process_thread should orchestrate save + extraction."""
     mock_client = MagicMock()
-    mock_anthropic_cls.return_value = mock_client
+    mock_openai_cls.return_value = mock_client
 
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text=json.dumps(MOCK_EXTRACTION_RESULT))]
-    mock_client.messages.create.return_value = mock_response
+    mock_client.chat.completions.create.return_value = _mock_openai_response(
+        json.dumps(MOCK_EXTRACTION_RESULT)
+    )
 
     from extraction import process_thread
 
