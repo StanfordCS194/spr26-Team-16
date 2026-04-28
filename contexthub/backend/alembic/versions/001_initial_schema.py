@@ -7,7 +7,7 @@ Create Date: 2026-04-22
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, ENUM, JSONB, TSVECTOR, UUID
 
 revision = "001"
 down_revision = None
@@ -171,7 +171,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "source_platform",
-            sa.Enum("claude_ai", "chatgpt", "gemini", name="source_platform", create_type=False),
+            ENUM("claude_ai", "chatgpt", "gemini", name="source_platform", create_type=False),
             nullable=False,
         ),
         sa.Column("source_url", sa.Text),
@@ -187,7 +187,7 @@ def upgrade() -> None:
         sa.Column("commit_message", sa.Text),
         sa.Column(
             "status",
-            sa.Enum(
+            ENUM(
                 "pending", "processing", "ready", "failed",
                 name="push_status", create_type=False,
             ),
@@ -239,7 +239,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "layer",
-            sa.Enum(
+            ENUM(
                 "commit_message", "structured_block", "raw_transcript",
                 name="summary_layer", create_type=False,
             ),
@@ -384,7 +384,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "relation_type",
-            sa.Enum(
+            ENUM(
                 "continuation", "reference", "supersession",
                 name="relation_type", create_type=False,
             ),
@@ -440,17 +440,17 @@ def upgrade() -> None:
         ),
         sa.Column(
             "target_platform",
-            sa.Enum("claude_ai", name="target_platform", create_type=False),
+            ENUM("claude_ai", name="target_platform", create_type=False),
             nullable=False,
         ),
         sa.Column(
             "origin",
-            sa.Enum("extension", "dashboard", name="pull_origin", create_type=False),
+            ENUM("extension", "dashboard", name="pull_origin", create_type=False),
             nullable=False,
         ),
         sa.Column(
             "resolution",
-            sa.Enum(
+            ENUM(
                 "commit_message", "structured_block", "raw_transcript",
                 name="pull_resolution", create_type=False,
             ),

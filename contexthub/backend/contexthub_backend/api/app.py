@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from contexthub_backend.api.errors import (
@@ -19,6 +20,7 @@ from contexthub_backend.api.errors import (
 )
 from contexthub_backend.api.routes import auth as auth_routes
 from contexthub_backend.api.routes import health as health_routes
+from contexthub_backend.api.routes import pushes as push_routes
 from contexthub_backend.auth import dependencies as auth_deps
 from contexthub_backend.config import settings
 
@@ -38,6 +40,15 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
         redoc_url=None,
     )
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-Id"],
+    )
+
     # Request-ID middleware
     @app.middleware("http")
     async def attach_request_id(request: Request, call_next):
@@ -55,5 +66,6 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
     # Routers
     app.include_router(health_routes.router, prefix="/v1")
     app.include_router(auth_routes.router, prefix="/v1")
+    app.include_router(push_routes.router, prefix="/v1")
 
     return app

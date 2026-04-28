@@ -17,7 +17,8 @@ import uuid
 from datetime import datetime, timezone
 
 from faker import Faker
-from sqlalchemy import create_engine, text
+from sqlalchemy import Column, Table, create_engine, text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Session
 
 from contexthub_backend.db.models import (
@@ -34,6 +35,7 @@ from contexthub_backend.db.models import (
     Transcript,
     Workspace,
 )
+from contexthub_backend.db.base import Base
 from contexthub_backend.db.short_id import uuid7
 
 SEED = 42
@@ -61,17 +63,31 @@ def _now() -> datetime:
 def _insert_auth_users(conn, user_ids: list[uuid.UUID]) -> None:
     """Insert rows into auth.users (exists in stub; no-op in real Supabase)."""
     for uid in user_ids:
+        email = f"{str(uid).replace('-', '')[:16]}@fixture.local"
         conn.execute(
             text(
                 "INSERT INTO auth.users (id, email) VALUES (:id, :email) "
                 "ON CONFLICT (id) DO NOTHING"
             ),
-            {"id": str(uid), "email": fake.unique.email()},
+            {"id": str(uid), "email": email},
         )
+
+
+def _ensure_auth_users_metadata_stub() -> None:
+    """Provide auth.users table in ORM metadata for FK dependency sorting."""
+    if "auth.users" in Base.metadata.tables:
+        return
+    Table(
+        "users",
+        Base.metadata,
+        Column("id", UUID(as_uuid=True), primary_key=True),
+        schema="auth",
+    )
 
 
 def generate(database_url: str) -> None:
     engine = create_engine(database_url)
+    _ensure_auth_users_metadata_stub()
 
     user_ids = [uuid7() for _ in range(N_USERS)]
 

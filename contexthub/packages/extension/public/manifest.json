@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "ContextHub Demo Sidebar",
+  "version": "0.0.1",
+  "description": "Visual-only ContextHub extension demo for Claude.ai.",
+  "permissions": ["storage", "tabs", "activeTab"],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://www.claude.ai/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*", "https://www.claude.ai/*"],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.html", "assets/*"],
+      "matches": ["https://claude.ai/*", "https://www.claude.ai/*"]
+    }
+  ],
+  "action": {
+    "default_title": "ContextHub Demo"
+  }
+}

@@ -81,6 +81,34 @@ Convention per entry:
 
 ---
 
+## Modules 4–8 — integration repair · 2026-04-23
+
+**Environment:** macOS 25.x (Darwin, arm64); Python 3.12+; uv workspace lock regenerated; FastAPI 0.115.x; SQLAlchemy 2.x; ARQ 0.26.x.
+
+| Check | Result | Note |
+| ----- | ------ | ---- |
+| Merge-marker scan | pass | Resolved conflicts in backend config/pyproject and regenerated `uv.lock` |
+| Provider contract refactor | pass | `LLMProvider.complete` + `EmbeddingProvider.embed` wired; DI factories exported |
+| Shared app integration | pass | Push route added to `api.app.create_app`; no parallel app entrypoint remains |
+| Auth/RLS path on push route | pass | `get_current_user` + `get_rls_session` dependencies used |
+| DB-backed push write | pass | Route writes `pushes` (pending) and `transcripts` rows |
+| ARQ enqueue path | pass | `summarize_push` job enqueued through `jobs.registry.enqueue_job` |
+| Summarizer/embedding services | pass | JSON-parse + structured-block validation + markdown render + embedding upsert |
+| New unit tests | pass | `test_providers_unit.py` |
+| New integration tests | pass | `test_pushes_api.py` includes user-A/user-B workspace isolation |
+| CI workflow updates | pass | `ci.yml` includes provider unit/contract tests and pushes API integration test |
+
+**Known warnings (accepted):**
+
+- Provider live/recorded tests are marked `@pytest.mark.live` and skipped when API keys are absent in CI.
+
+**Left for later:**
+
+- Add explicit DLQ persistence/inspection endpoint for failed ARQ jobs.
+- Add end-to-end worker integration test with live Redis queue drain in CI.
+
+---
+
 ## Module 3 — `backend/auth` · 2026-04-22
 
 **Environment:** macOS 25.3.0 (Darwin, arm64); Python 3.13.9; pytest 9.0.3; FastAPI 0.115.x; PyJWT 2.9.x; httpx 0.27.x; SQLAlchemy 2.x async (asyncpg). Integration tests CI-gated against `pgvector/pgvector:pg15`.

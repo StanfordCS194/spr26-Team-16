@@ -12,7 +12,12 @@
     "test": "pnpm -r test",
     "test:py": "uv run --package contexthub-interchange pytest",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "dashboard:dev": "pnpm --filter @contexthub/dashboard dev",
+    "dashboard:build": "pnpm --filter @contexthub/dashboard build",
+    "dashboard:start": "pnpm --filter @contexthub/dashboard start",
+    "extension:dev": "pnpm --filter @contexthub/extension dev",
+    "extension:build": "pnpm --filter @contexthub/extension build"
   },
   "devDependencies": {
     "typescript": "^5.5.4",

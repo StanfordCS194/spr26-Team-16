@@ -54,7 +54,9 @@ Target: closed beta with 50–100 users, aligned with PRD milestones (architectu
 
 **Shipped 2026-04-22:** Module 3 — `backend/auth`. Supabase JWT verifier, API-token mint/verify/revoke, FastAPI dependency chain (get_db_session → get_current_user → get_rls_session), auth routes (GET /v1/me, POST|GET|DELETE /v1/tokens), health routes, 54/54 unit tests green, 21 integration tests CI-gated. See `VALIDATION.md` Module 3 entry.
 
-**Next session (after review):** Module 4 — `backend/providers`. `LLMProvider` + `EmbeddingProvider` ABCs + `AnthropicProvider` (Claude Haiku 4.5) + `VoyageEmbeddingProvider` (`voyage-3-large`, 1024d) + prompt-version registry.
+**Shipped 2026-04-23:** Modules 4–8 integration repair — provider abstraction contract (`LLMProvider.complete`, `EmbeddingProvider.embed`), prompt registry + provider DI factories, push ingress route wired into `api.app` with Module 3 auth/RLS dependencies, DB-backed push/transcript persistence, ARQ job registry (`summarize_push`, `embed_summary`, purge skeletons), and replacement of the temporary in-memory pipeline.
+
+**Next session (after review):** Module 9 — `backend/search` hybrid ranking (pgvector + BM25) on workspace-scoped summaries.
 
 **Distribution note:** Modules 4–8 will be picked up by other team members. Read `INTEGRATION.md` before starting — it documents the concrete integration points of Modules 1/2/3 (imports, patterns, auth-dependency chain, RLS session pattern, testing discipline, CI extension) and lists the four docs to update when any module ships. Re-assert the proposal-before-code workflow for all subsequent modules.
 
