@@ -72,12 +72,12 @@ REDIS_URL=redis://localhost:6379
 USER_ID=11111111-1111-1111-1111-111111111111
 WORKSPACE_ID=22222222-2222-2222-2222-222222222222
 
-# Optional live provider path through Vercel AI Gateway:
-# AI_GATEWAY_API_KEY=<your-key>
-# AI_GATEWAY_BASE_URL=https://ai-gateway.vercel.sh/v1
-# AI_GATEWAY_LLM_MODEL=deepseek/deepseek-v4-flash
-# AI_GATEWAY_EMBEDDING_MODEL=voyage/voyage-3.5-lite
-# AI_GATEWAY_EMBEDDING_DIMENSIONS=1024
+# Live provider path through Vercel AI Gateway:
+AI_GATEWAY_API_KEY=<your-key>
+AI_GATEWAY_BASE_URL=https://ai-gateway.vercel.sh/v1
+AI_GATEWAY_LLM_MODEL=deepseek/deepseek-v4-flash
+AI_GATEWAY_EMBEDDING_MODEL=voyage/voyage-3.5-lite
+AI_GATEWAY_EMBEDDING_DIMENSIONS=1024
 EOF
 ```
 
