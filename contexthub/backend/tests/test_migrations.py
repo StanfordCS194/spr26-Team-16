@@ -16,7 +16,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-import sqlalchemy as sa
 from sqlalchemy import inspect, text
 
 BACKEND_DIR = Path(__file__).parent.parent
@@ -67,7 +66,7 @@ class TestMigrationsUp:
                     text("SELECT DISTINCT layer FROM summaries")
                 ).fetchall()
             }
-        expected = {"commit_message", "structured_block", "raw_transcript"}
+        expected = {"title", "summary", "details", "raw_transcript"}
         assert layers.issubset(expected)
 
     def test_pushes_cover_all_source_platforms(self, db_engine):

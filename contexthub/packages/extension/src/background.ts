@@ -1,5 +1,5 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.info("[ContextHub Demo] extension installed");
+  console.info("[ContextHub] extension installed");
 });
 
 async function apiRequest(
@@ -68,6 +68,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "ctxh:push-status") {
+    (async () => {
+      try {
+        const { apiBaseUrl, authToken, pushId } = message.payload ?? {};
+        if (!apiBaseUrl || !authToken || !pushId) {
+          sendResponse({ ok: false, message: "Missing apiBaseUrl/authToken/pushId" });
+          return;
+        }
+        const res = await apiRequest(apiBaseUrl, authToken, `/v1/pushes/${pushId}`);
+        sendResponse(res);
+      } catch (err) {
+        sendResponse({ ok: false, message: err instanceof Error ? err.message : "Unknown error" });
+      }
+    })();
+    return true;
+  }
+
+  if (message?.type === "ctxh:push-detail") {
     (async () => {
       try {
         const { apiBaseUrl, authToken, pushId } = message.payload ?? {};

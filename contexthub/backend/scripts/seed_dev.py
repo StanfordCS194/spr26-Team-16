@@ -72,7 +72,7 @@ def seed(database_url: str) -> None:
                 source_platform="claude_ai",
                 source_url=f"https://claude.ai/chat/dev-{i:03d}",
                 interchange_version="ch.v0.1",
-                commit_message=f"Dev push #{i + 1}: explored topic {i}",
+                title=f"Dev push #{i + 1}: explored topic {i}",
                 status="ready",
             )
             session.add(p)
@@ -85,7 +85,7 @@ def seed(database_url: str) -> None:
                 user_id=user_b,
                 source_platform="claude_ai",
                 interchange_version="ch.v0.1",
-                commit_message=f"Bob push #{i + 1}",
+                title=f"Bob push #{i + 1}",
                 status="ready",
             )
             session.add(p)
@@ -99,9 +99,9 @@ def seed(database_url: str) -> None:
                 Summary(
                     id=uuid7(),
                     push_id=push.id,
-                    layer="commit_message",
-                    content_json={"text": push.commit_message},
-                    content_markdown=push.commit_message,
+                    layer="summary",
+                    content_json={"text": push.title},
+                    content_markdown=push.title,
                     model="claude-haiku-4-5",
                     prompt_version="summarize_v1.0",
                 )

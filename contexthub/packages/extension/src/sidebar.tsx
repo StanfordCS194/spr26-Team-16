@@ -4,6 +4,17 @@ import "./sidebar.css";
 import { ConversationV0 } from "@contexthub/interchange-spec";
 
 function SidebarApp() {
+  type PushDetailSummaryLayer = {
+    layer: string;
+    content_json: Record<string, unknown>;
+  };
+  type PushDetail = {
+    id: string;
+    raw_transcript: string | null;
+    summaries: PushDetailSummaryLayer[];
+  };
+  type SummaryDetails = { summary?: unknown; key_takeaways?: unknown; tags?: unknown };
+
   const [apiBaseUrl, setApiBaseUrl] = useState("http://localhost:8000");
   const [workspaceId, setWorkspaceId] = useState("");
   const [authToken, setAuthToken] = useState("");
@@ -13,7 +24,7 @@ function SidebarApp() {
   const [error, setError] = useState<string | null>(null);
   const [capturePreview, setCapturePreview] = useState<string>("");
   const [capturedMessageCount, setCapturedMessageCount] = useState<number>(0);
-  const [searchQuery, setSearchQuery] = useState("local system test");
+  const [searchQuery, setSearchQuery] = useState("onboarding workflow");
   const [searchResults, setSearchResults] = useState<
     Array<{ push_id: string; title: string | null; workspace_id: string; snippet: string; score: number }>
   >([]);
@@ -21,6 +32,9 @@ function SidebarApp() {
   const [transcriptSelections, setTranscriptSelections] = useState<Record<string, boolean>>({});
   const [pullPayload, setPullPayload] = useState<string>("");
   const [lastPushStatus, setLastPushStatus] = useState<string | null>(null);
+  const [expandedPushId, setExpandedPushId] = useState<string | null>(null);
+  const [pushDetails, setPushDetails] = useState<Record<string, PushDetail>>({});
+  const [detailsLoadingPushId, setDetailsLoadingPushId] = useState<string | null>(null);
 
   const isReady = useMemo(() => Boolean(apiBaseUrl && workspaceId && authToken), [apiBaseUrl, workspaceId, authToken]);
 
@@ -161,6 +175,46 @@ function SidebarApp() {
     setTranscriptSelections((prev) => ({ ...prev, [pushId]: !prev[pushId] }));
   }
 
+  function asStringList(value: unknown): string[] {
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  }
+
+  function extractDetails(detail: PushDetail | undefined): { summary: string; keyTakeaways: string[]; tags: string[] } {
+    const detailsLayer = detail?.summaries.find((summary) => summary.layer === "details")?.content_json as SummaryDetails | undefined;
+    const summaryLayer = detail?.summaries.find((summary) => summary.layer === "summary")?.content_json;
+    const fallbackSummary = typeof summaryLayer?.text === "string" ? summaryLayer.text : "";
+    return {
+      summary: typeof detailsLayer?.summary === "string" ? detailsLayer.summary : fallbackSummary,
+      keyTakeaways: asStringList(detailsLayer?.key_takeaways),
+      tags: asStringList(detailsLayer?.tags)
+    };
+  }
+
+  async function togglePushDetails(pushId: string) {
+    if (expandedPushId === pushId) {
+      setExpandedPushId(null);
+      return;
+    }
+    setExpandedPushId(pushId);
+    if (pushDetails[pushId]) return;
+    setDetailsLoadingPushId(pushId);
+    const res = await chrome.runtime.sendMessage({
+      type: "ctxh:push-detail",
+      payload: {
+        apiBaseUrl,
+        authToken,
+        pushId
+      }
+    });
+    if (!res?.ok) {
+      setError(res?.message || "Failed to load push details.");
+      setDetailsLoadingPushId(null);
+      return;
+    }
+    setPushDetails((prev) => ({ ...prev, [pushId]: res.data as PushDetail }));
+    setDetailsLoadingPushId(null);
+  }
+
   async function buildAndInjectPull() {
     if (!isReady || selectedPushIds.length === 0) return;
     setError(null);
@@ -193,8 +247,8 @@ function SidebarApp() {
   return (
     <div className="shell">
       <header className="header">
-        <h1>ContextHub Extension Demo</h1>
-        <p>Claude.ai adapter + real push route</p>
+        <h1>ContextHub Assistant</h1>
+        <p>Capture, retrieve, and inject context directly into Claude.</p>
       </header>
 
       <div className="body">
@@ -246,7 +300,7 @@ function SidebarApp() {
               push();
             }}
           >
-            Push to ContextHub (real)
+            Push to ContextHub
           </button>
           {lastPushId ? (
             <p className="muted">
@@ -277,8 +331,8 @@ function SidebarApp() {
               Pull + inject into Claude
             </button>
             {searchResults.map((result) => (
-              <label key={result.push_id} className="muted" style={{ display: "grid", gap: 4 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <div key={result.push_id} className="muted card" style={{ display: "grid", gap: 6, padding: 10 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "nowrap" }}>
                   <input
                     type="checkbox"
                     checked={selectedPushIds.includes(result.push_id)}
@@ -287,7 +341,7 @@ function SidebarApp() {
                   <strong>{result.title || "Untitled push"}</strong>
                 </span>
                 {selectedPushIds.includes(result.push_id) ? (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
                     <input
                       type="checkbox"
                       checked={Boolean(transcriptSelections[result.push_id])}
@@ -297,10 +351,57 @@ function SidebarApp() {
                   </span>
                 ) : null}
                 <span>
-                  <code>{result.push_id}</code> · score {result.score.toFixed(3)}
+                  <code>{result.push_id}</code>
                 </span>
                 <span>{result.snippet}</span>
-              </label>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  style={{ width: "fit-content" }}
+                  onClick={() => togglePushDetails(result.push_id)}
+                >
+                  {expandedPushId === result.push_id ? "Hide details" : "View details"}
+                </button>
+                {expandedPushId === result.push_id ? (
+                  <div className="card" style={{ marginTop: 4 }}>
+                    {detailsLoadingPushId === result.push_id ? (
+                      <span>Loading details...</span>
+                    ) : (() => {
+                        const detail = pushDetails[result.push_id];
+                        const details = extractDetails(detail);
+                        return (
+                          <div style={{ display: "grid", gap: 8 }}>
+                            <span><strong>Summary:</strong> {details.summary || "No summary available."}</span>
+                            <div>
+                              <strong>Key takeaways</strong>
+                              {details.keyTakeaways.length ? (
+                                <ul className="list">
+                                  {details.keyTakeaways.map((takeaway) => <li key={takeaway}>{takeaway}</li>)}
+                                </ul>
+                              ) : (
+                                <div>None</div>
+                              )}
+                            </div>
+                            <div>
+                              <strong>Tags</strong>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                                {details.tags.length
+                                  ? details.tags.map((tag) => <span className="pill" key={tag}>{tag}</span>)
+                                  : <span>None</span>}
+                              </div>
+                            </div>
+                            <div>
+                              <strong>Raw transcript</strong>
+                              <pre style={{ maxHeight: 220, overflow: "auto", marginTop: 6 }}>
+                                {detail?.raw_transcript || "No transcript available."}
+                              </pre>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                  </div>
+                ) : null}
+              </div>
             ))}
             {pullPayload ? (
               <details>

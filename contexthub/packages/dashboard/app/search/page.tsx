@@ -28,11 +28,12 @@ type SearchResponse = {
 type PushHistoryItem = {
   id: string;
   workspace_id: string;
-  title: string | null;
+  conversation_title: string | null;
   status: string;
   created_at: string;
-  commit_message: string | null;
-  structured_summary_markdown: string | null;
+  title: string | null;
+  summary: string | null;
+  details: SummaryDetails | null;
 };
 
 type PushHistoryResponse = {
@@ -47,12 +48,48 @@ type PullSource = {
 };
 
 type PullResponse = {
-  mode: "structured_block_plus_optional_transcripts";
+  mode: "summary_plus_optional_transcripts";
   target_platform: "claude_ai";
   token_estimate: number;
   payload_markdown: string;
   provenance: string;
   sources: PullSource[];
+};
+
+type PushDetailSummaryLayer = {
+  layer: string;
+  content_markdown: string | null;
+  content_json: Record<string, unknown>;
+  model: string | null;
+  prompt_version: string | null;
+  failure_reason: string | null;
+};
+
+type SummaryDetails = {
+  summary?: unknown;
+  key_takeaways?: unknown;
+  tags?: unknown;
+};
+
+type ParsedSummaryDetails = {
+  summary: string;
+  key_takeaways: string[];
+  tags: string[];
+};
+
+type PushDetailResponse = {
+  id: string;
+  workspace_id: string;
+  status: string;
+  failure_reason: string | null;
+  source_platform: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  transcript_message_count: number | null;
+  transcript_size_bytes: number | null;
+  raw_transcript: string | null;
+  summaries: PushDetailSummaryLayer[];
 };
 
 export default function SearchPage() {
@@ -68,6 +105,9 @@ export default function SearchPage() {
   const [requestId, setRequestId] = useState<string | undefined>(undefined);
   const [pulling, setPulling] = useState(false);
   const [viewMode, setViewMode] = useState<"all" | "search">("all");
+  const [expandedPushId, setExpandedPushId] = useState<string | null>(null);
+  const [pushDetails, setPushDetails] = useState<Record<string, PushDetailResponse>>({});
+  const [detailLoadingPushId, setDetailLoadingPushId] = useState<string | null>(null);
 
   useEffect(() => {
     const savedWorkspaceId = localStorage.getItem("ctxh_workspace_id") || "";
@@ -89,11 +129,11 @@ export default function SearchPage() {
     const mapped: SearchResultItem[] = res.data.items.map((item) => ({
       push_id: item.id,
       workspace_id: item.workspace_id,
-      title: item.title,
+      title: item.title || item.conversation_title,
       status: item.status,
       created_at: item.created_at,
-      layer: "structured_block",
-      snippet: item.structured_summary_markdown || item.commit_message || "No summary available yet.",
+      layer: "summary",
+      snippet: item.summary || "No summary available yet.",
       score: 0,
       vector_score: 0,
       text_score: 0
@@ -101,6 +141,7 @@ export default function SearchPage() {
     setItems(mapped);
     setSelectedPushIds([]);
     setTranscriptSelections({});
+    setExpandedPushId(null);
     setViewMode("all");
     setRequestId(res.requestId);
     setLoading(false);
@@ -134,6 +175,7 @@ export default function SearchPage() {
     setItems(res.data.items);
     setSelectedPushIds([]);
     setTranscriptSelections({});
+    setExpandedPushId(null);
     setViewMode("search");
     setRequestId(res.requestId);
     setLoading(false);
@@ -146,12 +188,60 @@ export default function SearchPage() {
   const uniquePushes = useMemo(() => {
     const deduped = new Map<string, SearchResultItem>();
     for (const item of items) {
-      if (!deduped.has(item.push_id) || (deduped.get(item.push_id)?.score ?? 0) < item.score) {
+      const existing = deduped.get(item.push_id);
+      const shouldReplace =
+        !existing ||
+        (item.layer === "summary" && existing.layer !== "summary") ||
+        (item.layer === existing.layer && item.score > existing.score);
+      if (shouldReplace) {
         deduped.set(item.push_id, item);
       }
     }
     return Array.from(deduped.values());
   }, [items]);
+
+  const asStringList = useCallback((value: unknown): string[] => {
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  }, []);
+
+  const detailsFromLayer = useCallback(
+    (detail: PushDetailResponse | undefined): ParsedSummaryDetails => {
+      const detailsLayer = detail?.summaries.find((summary) => summary.layer === "details")
+        ?.content_json as SummaryDetails | undefined;
+      const summaryLayer = detail?.summaries.find((summary) => summary.layer === "summary")?.content_json;
+      const fallbackSummary = typeof summaryLayer?.text === "string" ? summaryLayer.text : "";
+      return {
+        summary: typeof detailsLayer?.summary === "string" ? detailsLayer.summary : fallbackSummary,
+        key_takeaways: asStringList(detailsLayer?.key_takeaways),
+        tags: asStringList(detailsLayer?.tags)
+      };
+    },
+    [asStringList]
+  );
+
+  const extractSummaryLine = useCallback(
+    (summary: string): string => summary.replace(/\s+/g, " ").trim().slice(0, 220),
+    []
+  );
+
+  async function toggleDetails(pushId: string) {
+    if (expandedPushId === pushId) {
+      setExpandedPushId(null);
+      return;
+    }
+    setExpandedPushId(pushId);
+    if (pushDetails[pushId]) return;
+    setDetailLoadingPushId(pushId);
+    const res = await apiFetch<PushDetailResponse>(`/v1/pushes/${pushId}`);
+    if (!res.ok) {
+      setError(res.message);
+      setRequestId(res.requestId);
+      setDetailLoadingPushId(null);
+      return;
+    }
+    setPushDetails((prev) => ({ ...prev, [pushId]: res.data }));
+    setDetailLoadingPushId(null);
+  }
 
   async function pullSelected() {
     if (selectedPushIds.length === 0) return;
@@ -297,8 +387,8 @@ export default function SearchPage() {
               <h3 style={{ margin: 0 }}>{item.title || "Untitled push"}</h3>
               <span className="pill">{item.status}</span>
             </div>
-            <p className="muted">
-              <label style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+            <div className="row" style={{ justifyContent: "flex-start", gap: 12, flexWrap: "nowrap" }}>
+              <label className="muted" style={{ display: "inline-flex", gap: 8, alignItems: "center", whiteSpace: "nowrap" }}>
                 <input
                   type="checkbox"
                   checked={selectedPushIds.includes(item.push_id)}
@@ -307,7 +397,7 @@ export default function SearchPage() {
                 Select for pull
               </label>
               {selectedPushIds.includes(item.push_id) ? (
-                <label style={{ display: "inline-flex", gap: 8, alignItems: "center", marginLeft: 12 }}>
+                <label className="muted" style={{ display: "inline-flex", gap: 8, alignItems: "center", whiteSpace: "nowrap" }}>
                   <input
                     type="checkbox"
                     checked={Boolean(transcriptSelections[item.push_id])}
@@ -316,7 +406,7 @@ export default function SearchPage() {
                   Include transcript
                 </label>
               ) : null}
-            </p>
+            </div>
             <p className="muted">
               Push: <code>{item.push_id}</code>
             </p>
@@ -327,14 +417,70 @@ export default function SearchPage() {
 
             <div className="grid" style={{ gap: 8 }}>
               <div>
-                <strong>Snippet</strong>
+                <strong>Summary</strong>
                 <p className="muted" style={{ marginTop: 6 }}>
-                  {item.snippet || "No snippet available"}
+                  {extractSummaryLine(item.snippet || "No summary available")}
                 </p>
               </div>
-              <p className="muted" style={{ margin: 0 }}>
-                score={item.score.toFixed(3)} · vector={item.vector_score.toFixed(3)} · text={item.text_score.toFixed(3)}
-              </p>
+              <button
+                className="button secondary"
+                type="button"
+                style={{ width: "fit-content" }}
+                onClick={() => toggleDetails(item.push_id)}
+              >
+                {expandedPushId === item.push_id ? "Hide details" : "View details"}
+              </button>
+              {expandedPushId === item.push_id ? (
+                <div className="card" style={{ background: "#f3faff", borderColor: "#b9d7ed" }}>
+                  {detailLoadingPushId === item.push_id ? (
+                    <p className="muted" style={{ margin: 0 }}>
+                      Loading details...
+                    </p>
+                  ) : (() => {
+                      const detail = pushDetails[item.push_id];
+                      const details = detailsFromLayer(detail);
+                      return (
+                        <div className="grid" style={{ gap: 10 }}>
+                          <p className="muted" style={{ margin: 0 }}>
+                            <strong>Summary:</strong> {details.summary || "No summary available."}
+                          </p>
+                          <div>
+                            <strong>Key takeaways</strong>
+                            {details.key_takeaways.length ? (
+                              <ul className="muted" style={{ marginTop: 6 }}>
+                                {details.key_takeaways.map((takeaway) => (
+                                  <li key={takeaway}>{takeaway}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="muted" style={{ marginTop: 6 }}>None</p>
+                            )}
+                          </div>
+                          <div>
+                            <strong>Tags</strong>
+                            <div className="row" style={{ justifyContent: "flex-start", gap: 8, marginTop: 6 }}>
+                              {details.tags.length ? (
+                                details.tags.map((tag) => (
+                                  <span className="pill" key={tag}>
+                                    {tag}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="muted">None</span>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <strong>Raw transcript</strong>
+                            <pre style={{ marginTop: 6, maxHeight: 220, overflow: "auto" }}>
+                              {detail?.raw_transcript || "No transcript available."}
+                            </pre>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                </div>
+              ) : null}
             </div>
           </article>
         ))}

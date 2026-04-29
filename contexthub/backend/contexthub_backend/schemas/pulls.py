@@ -24,7 +24,7 @@ class PullSource(BaseModel):
 
 
 class PullResponse(BaseModel):
-    mode: str = "structured_block_plus_optional_transcripts"
+    mode: str = "summary_plus_optional_transcripts"
     target_platform: str
     token_estimate: int
     payload_markdown: str

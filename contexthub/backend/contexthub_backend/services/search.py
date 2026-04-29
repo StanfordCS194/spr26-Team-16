@@ -27,6 +27,14 @@ class SearchHit:
     transcript_size_bytes: int | None
 
 
+def _canonical_layer(layer: str) -> str:
+    if layer == "commit_message":
+        return "title"
+    if layer == "structured_block":
+        return "summary"
+    return layer
+
+
 def _snippet(text: str | None, query: str) -> str:
     source = (text or "").strip()
     if not source:
@@ -75,7 +83,13 @@ async def hybrid_search(
         + func.coalesce(text_score_expr, literal(0.0)) * literal(0.35)
     )
 
-    layers = ["commit_message", "structured_block"]
+    layers = [
+        "commit_message",
+        "structured_block",
+        "title",
+        "summary",
+        "details",
+    ]
     if include_transcripts:
         layers.append("raw_transcript")
 
@@ -111,8 +125,23 @@ async def hybrid_search(
         query_stmt = query_stmt.where(Push.workspace_id == workspace_id)
 
     rows = (await session.execute(query_stmt)).all()
+    push_ids = [row.push_id for row in rows]
+    if push_ids:
+        summary_rows = await session.execute(
+            select(Summary.push_id, Summary.content_markdown).where(
+                Summary.push_id.in_(push_ids),
+                Summary.layer.in_(["summary", "structured_block"]),
+            )
+        )
+        summaries_by_push = {
+            row.push_id: row.content_markdown
+            for row in summary_rows.all()
+        }
+    else:
+        summaries_by_push = {}
     hits: list[SearchHit] = []
     for row in rows:
+        display_text = summaries_by_push.get(row.push_id) or row.content_markdown
         hits.append(
             SearchHit(
                 push_id=row.push_id,
@@ -120,8 +149,8 @@ async def hybrid_search(
                 title=row.title,
                 status=row.status,
                 created_at=row.created_at,
-                layer=row.layer,
-                snippet=_snippet(row.content_markdown, query_clean),
+                layer=_canonical_layer(row.layer),
+                snippet=_snippet(display_text, query_clean),
                 vector_score=float(row.vector_score or 0.0),
                 text_score=float(row.text_score or 0.0),
                 score=float(row.score or 0.0),

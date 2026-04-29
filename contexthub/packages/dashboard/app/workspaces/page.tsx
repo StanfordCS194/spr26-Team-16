@@ -11,8 +11,8 @@ function defaultConversation(title: string): ConversationV0 {
     spec_version: "ch.v0.1",
     source: { platform: "claude_ai", captured_at: new Date().toISOString() },
     messages: [
-      { role: "user", content: [{ type: "text", text: "This is a dashboard-triggered push test." }] },
-      { role: "assistant", content: [{ type: "text", text: "If the worker is running, this should become ready." }] }
+      { role: "user", content: [{ type: "text", text: "Capture architecture decisions for the onboarding workflow." }] },
+      { role: "assistant", content: [{ type: "text", text: "Captured. I will include requirements, constraints, and next actions." }] }
     ],
     metadata: { title }
   };
@@ -21,7 +21,7 @@ function defaultConversation(title: string): ConversationV0 {
 function PushTester() {
   const [workspaceId, setWorkspaceId] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(`dash-${Date.now()}`);
-  const [jsonBody, setJsonBody] = useState<string>(() => JSON.stringify(defaultConversation("Dashboard push test"), null, 2));
+  const [jsonBody, setJsonBody] = useState<string>(() => JSON.stringify(defaultConversation("Onboarding workflow context"), null, 2));
 
   const [result, setResult] = useState<PushAccepted | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +126,7 @@ function PushTester() {
             </button>
             <button
               className="button secondary"
-              onClick={() => setJsonBody(JSON.stringify(defaultConversation("Dashboard push test"), null, 2))}
+              onClick={() => setJsonBody(JSON.stringify(defaultConversation("Onboarding workflow context"), null, 2))}
               disabled={loading}
             >
               Reset JSON

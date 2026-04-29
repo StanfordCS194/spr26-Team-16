@@ -49,8 +49,7 @@ async def create_pull(
         user_id=user.user_id,
         target_platform=body.target_platform,
         origin=body.origin,
-        # Pull table still uses legacy enum; we always persist as structured_block mode.
-        resolution="structured_block",
+        resolution="summary",
         push_ids=[str(push_id) for push_id in push_ids],
         workspace_ids=payload.workspace_ids,
         token_estimate=payload.token_estimate,
@@ -65,7 +64,7 @@ async def create_pull(
             resource_id=str(pull_row.id),
             request_id=request.state.request_id,
             metadata_json={
-                "mode": "structured_block_plus_optional_transcripts",
+                "mode": "summary_plus_optional_transcripts",
                 "target_platform": body.target_platform,
                 "source_push_ids": [str(push_id) for push_id in push_ids],
                 "transcript_push_ids": [
@@ -78,7 +77,7 @@ async def create_pull(
     )
 
     return PullResponse(
-        mode="structured_block_plus_optional_transcripts",
+        mode="summary_plus_optional_transcripts",
         target_platform=body.target_platform,
         token_estimate=payload.token_estimate,
         payload_markdown=payload_markdown,

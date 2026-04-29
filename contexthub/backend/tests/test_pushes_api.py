@@ -154,25 +154,31 @@ async def test_history_returns_only_callers_pushes_with_summaries(client, async_
                 """
                 insert into summaries (push_id, layer, content_json, content_markdown, model, prompt_version)
                 values
-                  (:push_id, 'commit_message', cast(:commit_json as jsonb), :commit_md, 'fake-llm', 'summarize_v1'),
-                  (:push_id, 'structured_block', cast(:structured_json as jsonb), :structured_md, 'fake-llm', 'summarize_v1')
+                  (:push_id, 'title', cast(:title_json as jsonb), :title_md, 'fake-llm', 'summarize_v1'),
+                  (:push_id, 'summary', cast(:summary_json as jsonb), :summary_md, 'fake-llm', 'summarize_v1'),
+                  (:push_id, 'details', cast(:details_json as jsonb), :details_md, 'fake-llm', 'summarize_v1')
                 """
             ),
             {
                 "push_id": push_a_id,
-                "commit_json": json.dumps({"text": "History test commit summary"}),
-                "commit_md": "History test commit summary",
-                "structured_json": json.dumps(
+                "title_json": json.dumps({"text": "History test title"}),
+                "title_md": "History test title",
+                "summary_json": json.dumps({"text": "History test summary"}),
+                "summary_md": "History test summary",
+                "details_json": json.dumps(
                     {
-                        "spec_version": "ch.v0.1",
-                        "decisions": [],
-                        "artifacts": [],
-                        "open_questions": [],
-                        "assumptions": [],
-                        "constraints": [],
+                        "summary": "History test summary",
+                        "key_takeaways": ["none"],
+                        "tags": ["history", "test", "summary", "push"],
                     }
                 ),
-                "structured_md": "## Decisions\n\n- none\n",
+                "details_md": json.dumps(
+                    {
+                        "summary": "History test summary",
+                        "key_takeaways": ["none"],
+                        "tags": ["history", "test", "summary", "push"],
+                    }
+                ),
             },
         )
 
@@ -189,8 +195,9 @@ async def test_history_returns_only_callers_pushes_with_summaries(client, async_
     assert len(matching) == 1
     item = matching[0]
     assert item["workspace_id"] == str(ws_a)
-    assert item["commit_message"] == "History test commit summary"
-    assert item["structured_summary_markdown"] == "## Decisions\n\n- none\n"
+    assert item["title"] == "History test title"
+    assert item["summary"] == "History test summary"
+    assert item["details"]["tags"] == ["history", "test", "summary", "push"]
     assert "Summarize this thread" in (item["raw_transcript"] or "")
 
     # Caller should not see other users' pushes.
@@ -217,25 +224,31 @@ async def test_get_push_detail_returns_layers_for_owner(client, async_engine, pu
                 update pushes set status = 'ready' where id = :push_id;
                 insert into summaries (push_id, layer, content_json, content_markdown, model, prompt_version)
                 values
-                  (:push_id, 'commit_message', cast(:commit_json as jsonb), :commit_md, 'fake-llm', 'summarize_v1'),
-                  (:push_id, 'structured_block', cast(:structured_json as jsonb), :structured_md, 'fake-llm', 'summarize_v1');
+                  (:push_id, 'title', cast(:title_json as jsonb), :title_md, 'fake-llm', 'summarize_v1'),
+                  (:push_id, 'summary', cast(:summary_json as jsonb), :summary_md, 'fake-llm', 'summarize_v1'),
+                  (:push_id, 'details', cast(:details_json as jsonb), :details_md, 'fake-llm', 'summarize_v1');
                 """
             ),
             {
                 "push_id": push_id,
-                "commit_json": json.dumps({"text": "Detail test summary"}),
-                "commit_md": "Detail test summary",
-                "structured_json": json.dumps(
+                "title_json": json.dumps({"text": "Detail test title"}),
+                "title_md": "Detail test title",
+                "summary_json": json.dumps({"text": "Detail test summary"}),
+                "summary_md": "Detail test summary",
+                "details_json": json.dumps(
                     {
-                        "spec_version": "ch.v0.1",
-                        "decisions": [],
-                        "artifacts": [],
-                        "open_questions": [],
-                        "assumptions": [],
-                        "constraints": [],
+                        "summary": "Detail test summary",
+                        "key_takeaways": ["none"],
+                        "tags": ["detail", "test", "summary", "push"],
                     }
                 ),
-                "structured_md": "## Decisions\n\n- none\n",
+                "details_md": json.dumps(
+                    {
+                        "summary": "Detail test summary",
+                        "key_takeaways": ["none"],
+                        "tags": ["detail", "test", "summary", "push"],
+                    }
+                ),
             },
         )
 
@@ -249,8 +262,9 @@ async def test_get_push_detail_returns_layers_for_owner(client, async_engine, pu
     assert body["workspace_id"] == str(ws)
     assert body["status"] == "ready"
     layers = {layer["layer"] for layer in body["summaries"]}
-    assert "commit_message" in layers
-    assert "structured_block" in layers
+    assert "title" in layers
+    assert "summary" in layers
+    assert "details" in layers
 
 
 @pytest.mark.integration
@@ -273,25 +287,31 @@ async def test_search_and_pull_routes(client, async_engine, push_users_and_works
                 update pushes set status = 'ready' where id = :push_id;
                 insert into summaries (push_id, layer, content_json, content_markdown, model, prompt_version)
                 values
-                  (:push_id, 'commit_message', cast(:commit_json as jsonb), :commit_md, 'fake-llm', 'summarize_v1'),
-                  (:push_id, 'structured_block', cast(:structured_json as jsonb), :structured_md, 'fake-llm', 'summarize_v1');
+                  (:push_id, 'title', cast(:title_json as jsonb), :title_md, 'fake-llm', 'summarize_v1'),
+                  (:push_id, 'summary', cast(:summary_json as jsonb), :summary_md, 'fake-llm', 'summarize_v1'),
+                  (:push_id, 'details', cast(:details_json as jsonb), :details_md, 'fake-llm', 'summarize_v1');
                 """
             ),
             {
                 "push_id": push_id,
-                "commit_json": json.dumps({"text": "Search quality summary"}),
-                "commit_md": "Search quality summary",
-                "structured_json": json.dumps(
+                "title_json": json.dumps({"text": "Search quality title"}),
+                "title_md": "Search quality title",
+                "summary_json": json.dumps({"text": "Search quality summary for module 12"}),
+                "summary_md": "Search quality summary for module 12",
+                "details_json": json.dumps(
                     {
-                        "spec_version": "ch.v0.1",
-                        "decisions": [{"title": "Use API route", "rationale": "Needed for module 12"}],
-                        "artifacts": [],
-                        "open_questions": [],
-                        "assumptions": [],
-                        "constraints": [],
+                        "summary": "Search quality summary for module 12",
+                        "key_takeaways": ["Use API route because it is needed for module 12"],
+                        "tags": ["search", "quality", "module-12", "api"],
                     }
                 ),
-                "structured_md": "## Decisions\n\n- **Use API route** - Needed for module 12\n",
+                "details_md": json.dumps(
+                    {
+                        "summary": "Search quality summary for module 12",
+                        "key_takeaways": ["Use API route because it is needed for module 12"],
+                        "tags": ["search", "quality", "module-12", "api"],
+                    }
+                ),
             },
         )
 
@@ -315,16 +335,16 @@ async def test_search_and_pull_routes(client, async_engine, push_users_and_works
     )
     assert pull_resp.status_code == 200
     pull_body = pull_resp.json()
-    assert pull_body["mode"] == "structured_block_plus_optional_transcripts"
+    assert pull_body["mode"] == "summary_plus_optional_transcripts"
     assert "Context provenance" not in pull_body["payload_markdown"]
-    assert "## Summary of selected structured blocks" in pull_body["payload_markdown"]
+    assert "## Summary of selected pushes" in pull_body["payload_markdown"]
     assert "Conversation transcript:" not in pull_body["payload_markdown"]
     assert pull_body["token_estimate"] > 0
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_pull_structured_block_multiple_sources_returns_summary(client, async_engine, push_users_and_workspaces):
+async def test_pull_summary_multiple_sources_returns_summary(client, async_engine, push_users_and_workspaces):
     ws = push_users_and_workspaces["ws_a"]
     user = push_users_and_workspaces["user_a"]
 
@@ -350,35 +370,17 @@ async def test_pull_structured_block_multiple_sources_returns_summary(client, as
                 update pushes set status = 'ready' where id in (:push_1, :push_2);
                 insert into summaries (push_id, layer, content_json, content_markdown, model, prompt_version)
                 values
-                  (:push_1, 'structured_block', cast(:structured_json_1 as jsonb), :structured_md_1, 'fake-llm', 'summarize_v1'),
-                  (:push_2, 'structured_block', cast(:structured_json_2 as jsonb), :structured_md_2, 'fake-llm', 'summarize_v1');
+                  (:push_1, 'summary', cast(:summary_json_1 as jsonb), :summary_md_1, 'fake-llm', 'summarize_v1'),
+                  (:push_2, 'summary', cast(:summary_json_2 as jsonb), :summary_md_2, 'fake-llm', 'summarize_v1');
                 """
             ),
             {
                 "push_1": push_1,
                 "push_2": push_2,
-                "structured_json_1": json.dumps(
-                    {
-                        "spec_version": "ch.v0.1",
-                        "decisions": [{"title": "A", "rationale": "Rationale A"}],
-                        "artifacts": [],
-                        "open_questions": [],
-                        "assumptions": [],
-                        "constraints": [],
-                    }
-                ),
-                "structured_json_2": json.dumps(
-                    {
-                        "spec_version": "ch.v0.1",
-                        "decisions": [{"title": "B", "rationale": "Rationale B"}],
-                        "artifacts": [],
-                        "open_questions": [],
-                        "assumptions": [],
-                        "constraints": [],
-                    }
-                ),
-                "structured_md_1": "## Decisions\n\n- **A** - Rationale A\n",
-                "structured_md_2": "## Decisions\n\n- **B** - Rationale B\n",
+                "summary_json_1": json.dumps({"text": "Decision A. Rationale A."}),
+                "summary_json_2": json.dumps({"text": "Decision B. Rationale B."}),
+                "summary_md_1": "Decision A. Rationale A.",
+                "summary_md_2": "Decision B. Rationale B.",
             },
         )
 
@@ -397,5 +399,5 @@ async def test_pull_structured_block_multiple_sources_returns_summary(client, as
     assert pull_resp.status_code == 200
     pull_body = pull_resp.json()
     assert "Context provenance" not in pull_body["payload_markdown"]
-    assert "## Summary of selected structured blocks" in pull_body["payload_markdown"]
+    assert "## Summary of selected pushes" in pull_body["payload_markdown"]
     assert "Conversation transcript:" in pull_body["payload_markdown"]

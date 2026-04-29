@@ -56,7 +56,7 @@ export function ApiConfig() {
         </label>
 
         <div className="row">
-          <span className="muted">Saved as `Bearer &lt;token&gt;` for `/v1/me`, `/v1/tokens`, and push tests.</span>
+          <span className="muted">Saved as `Bearer &lt;token&gt;` for `/v1/me`, `/v1/tokens`, and push operations.</span>
           <button className="button" onClick={save}>
             Save
           </button>

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 import uuid
 from typing import Any
 
@@ -15,9 +17,10 @@ from contexthub_backend.providers import get_embedding_provider, get_llm_provide
 from contexthub_backend.services.embeddings import embed_summary as embed_summary_service
 from contexthub_backend.services.storage import TranscriptStorageService
 from contexthub_backend.services.summarizer import (
-    structured_block_markdown,
     summarize_push as summarize_push_service,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def summarize_push(
@@ -55,9 +58,9 @@ async def summarize_push(
                 summaries = [
                     Summary(
                         push_id=push.id,
-                        layer="commit_message",
-                        content_json={"text": result.commit_message},
-                        content_markdown=result.commit_message.strip() + "\n",
+                        layer="title",
+                        content_json={"text": result.title},
+                        content_markdown=result.title.strip() + "\n",
                         model=result.model,
                         prompt_version=result.prompt_version,
                         latency_ms=result.latency_ms,
@@ -68,9 +71,22 @@ async def summarize_push(
                     ),
                     Summary(
                         push_id=push.id,
-                        layer="structured_block",
-                        content_json=result.structured_block.model_dump(mode="json"),
-                        content_markdown=structured_block_markdown(result.structured_block),
+                        layer="summary",
+                        content_json={"text": result.summary},
+                        content_markdown=result.summary.strip() + "\n",
+                        model=result.model,
+                        prompt_version=result.prompt_version,
+                        latency_ms=result.latency_ms,
+                        input_tokens=result.input_tokens,
+                        output_tokens=result.output_tokens,
+                        cost_usd=result.cost_usd,
+                        failure_reason=result.failure_reason,
+                    ),
+                    Summary(
+                        push_id=push.id,
+                        layer="details",
+                        content_json=result.details.model_dump(mode="json"),
+                        content_markdown=json.dumps(result.details.model_dump(mode="json"), indent=2),
                         model=result.model,
                         prompt_version=result.prompt_version,
                         latency_ms=result.latency_ms,
@@ -97,13 +113,20 @@ async def summarize_push(
                 await session.flush()
                 redis = ctx.get("redis")
                 if redis is not None:
-                    for summary in summaries:
-                        if summary.layer in {"commit_message", "structured_block"}:
-                            await redis.enqueue_job(
-                                "embed_summary",
-                                user_id=str(push.user_id),
-                                summary_id=str(summary.id),
-                            )
+                    try:
+                        for summary in summaries:
+                            if summary.layer in {"title", "summary", "details"}:
+                                await redis.enqueue_job(
+                                    "embed_summary",
+                                    user_id=str(push.user_id),
+                                    summary_id=str(summary.id),
+                                )
+                    except Exception as exc:
+                        # Embedding is best-effort; do not fail completed summarization.
+                        logger.warning(
+                            "embed enqueue failed after summarization",
+                            extra={"push_id": str(push.id), "error": repr(exc)},
+                        )
                 push.status = "ready"
                 session.add(
                     AuditLog(

@@ -55,6 +55,14 @@ def _summary_text(summary: Summary | None) -> str | None:
     return None
 
 
+def _canonical_layer(layer: str) -> str:
+    if layer == "commit_message":
+        return "title"
+    if layer == "structured_block":
+        return "summary"
+    return layer
+
+
 @router.post(
     "/workspaces/{workspace_id}/pushes",
     response_model=PushAccepted,
@@ -189,7 +197,8 @@ async def get_push_history(
     )
     summaries_by_push: dict[uuid.UUID, dict[str, Summary]] = {}
     for summary in summaries_result.scalars().all():
-        summaries_by_push.setdefault(summary.push_id, {})[summary.layer] = summary
+        canonical = _canonical_layer(summary.layer)
+        summaries_by_push.setdefault(summary.push_id, {})[canonical] = summary
 
     transcript_result = await session.execute(
         select(Transcript).where(Transcript.push_id.in_(push_ids))
@@ -213,15 +222,16 @@ async def get_push_history(
             PushHistoryItem(
                 id=str(push.id),
                 workspace_id=str(push.workspace_id),
-                title=push.title,
+                conversation_title=push.title,
                 status=push.status,
                 source_platform=push.source_platform,
                 source_url=push.source_url,
                 created_at=push.created_at,
                 updated_at=push.updated_at,
-                commit_message=_summary_text(summary_layers.get("commit_message")),
-                structured_summary_markdown=summary_layers.get("structured_block").content_markdown
-                if summary_layers.get("structured_block")
+                title=_summary_text(summary_layers.get("title")),
+                summary=_summary_text(summary_layers.get("summary")),
+                details=summary_layers.get("details").content_json
+                if summary_layers.get("details")
                 else None,
                 raw_transcript=raw_transcript,
             )
@@ -250,6 +260,13 @@ async def get_push(
         select(Transcript).where(Transcript.push_id == push.id)
     )
     transcript = transcript_result.scalar_one_or_none()
+    raw_transcript: str | None = None
+    if transcript is not None:
+        try:
+            conversation = await storage.load_transcript(transcript.storage_path)
+            raw_transcript = json.dumps(conversation.model_dump(mode="json"), indent=2)
+        except Exception:
+            raw_transcript = None
 
     return PushDetailResponse(
         id=str(push.id),
@@ -262,9 +279,10 @@ async def get_push(
         updated_at=push.updated_at,
         transcript_message_count=transcript.message_count if transcript else None,
         transcript_size_bytes=transcript.size_bytes if transcript else None,
+        raw_transcript=raw_transcript,
         summaries=[
             PushDetailSummaryLayer(
-                layer=summary.layer,
+                layer=_canonical_layer(summary.layer),
                 content_markdown=summary.content_markdown,
                 content_json=summary.content_json,
                 model=summary.model,

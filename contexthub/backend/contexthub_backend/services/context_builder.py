@@ -44,23 +44,21 @@ def _platform_framing(target_platform: str) -> str:
     return "Use the following retrieved context."
 
 
-def _structured_summary_prompt(items: list[tuple[str, str]]) -> str:
+def _summary_prompt(items: list[tuple[str, str]]) -> str:
     blocks = []
-    for idx, (title, markdown) in enumerate(items, start=1):
-        blocks.append(
-            f"## Structured block {idx}: {title}\n\n{markdown.strip()}\n"
-        )
+    for idx, (title, summary) in enumerate(items, start=1):
+        blocks.append(f"## Summary {idx}: {title}\n\n{summary.strip()}\n")
     joined = "\n".join(blocks)
     return (
-        "Summarize the following structured blocks into one concise markdown context for reuse in a new chat.\n"
-        "Focus on stable decisions, important artifacts, assumptions, constraints, and unresolved questions.\n"
+        "Summarize the following push summaries into one concise markdown context for reuse in a new chat.\n"
+        "Focus on stable decisions, important artifacts, assumptions, constraints, and unresolved questions when present.\n"
         "Do not include provenance, ids, timestamps, or source metadata.\n"
         "Return markdown only.\n\n"
         f"{joined}"
     )
 
 
-async def _summarize_structured_blocks(
+async def _summarize_push_summaries(
     *,
     llm: LLMProvider,
     items: list[tuple[str, str]],
@@ -68,7 +66,7 @@ async def _summarize_structured_blocks(
     if not items:
         return ""
     response = await llm.complete(
-        _structured_summary_prompt(items),
+        _summary_prompt(items),
         response_format="text",
         max_tokens=1200,
         temperature=0.1,
@@ -77,8 +75,8 @@ async def _summarize_structured_blocks(
     if not text:
         # Lightweight fallback if a provider returns empty output.
         bullets = "\n".join(f"- {title}" for title, _ in items)
-        return f"## Summary of selected structured blocks\n\n{bullets}\n"
-    return f"## Summary of selected structured blocks\n\n{text}\n"
+        return f"## Summary of selected pushes\n\n{bullets}\n"
+    return f"## Summary of selected pushes\n\n{text}\n"
 
 
 async def build_pull_payload(
@@ -125,7 +123,7 @@ async def build_pull_payload(
 
     sections: list[str] = []
     sources: list[PullSourceItem] = []
-    structured_items: list[tuple[str, str]] = []
+    summary_items: list[tuple[str, str]] = []
     transcript_sections: list[str] = []
     for push in pushes:
         sources.append(
@@ -137,10 +135,11 @@ async def build_pull_payload(
             )
         )
 
-        summary = summaries_by_push.get(push.id, {}).get("structured_block")
+        summary_layers = summaries_by_push.get(push.id, {})
+        summary = summary_layers.get("summary") or summary_layers.get("structured_block")
         if summary is None:
-            raise NotFoundError("structured_block summary missing for pull source")
-        structured_items.append((push.title or "Untitled push", summary.content_markdown or ""))
+            raise NotFoundError("summary missing for pull source")
+        summary_items.append((push.title or "Untitled push", summary.content_markdown or ""))
 
         if include_transcript_by_push.get(push.id, False):
             transcript = transcripts_by_push.get(push.id)
@@ -152,7 +151,7 @@ async def build_pull_payload(
             )
 
     sections.append(
-        await _summarize_structured_blocks(llm=llm, items=structured_items)
+        await _summarize_push_summaries(llm=llm, items=summary_items)
     )
 
     if transcript_sections:
