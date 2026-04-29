@@ -1,14 +1,8 @@
 from __future__ import annotations
 
+import json
 import time
 from typing import Literal
-
-from contexthub_interchange.models import (
-    Artifact,
-    Decision,
-    OpenQuestion,
-    StructuredBlockV0,
-)
 
 from .base import EmbeddingProvider, EmbeddingResponse, LLMProvider, LLMResponse
 
@@ -25,21 +19,25 @@ class FakeLLMProvider(LLMProvider):
         _ = (max_tokens, temperature)
         started = time.perf_counter()
         summary_text = prompt[:80] or "Conversation captured"
-        block = StructuredBlockV0(
-            spec_version="ch.v0.1",
-            decisions=[Decision(title="Captured", rationale="Stored by fake provider")],
-            artifacts=[Artifact(kind="other", name="Snippet", body=summary_text)],
-            open_questions=[OpenQuestion(question="What should be implemented next?")],
-            assumptions=[],
-            constraints=[],
-        )
-        text_payload = (
-            '{"commit_message":"Summary: %s","structured_block":%s,"raw_transcript":"Raw transcript is stored separately."}'
-            % (summary_text, block.model_dump_json())
+        details = {
+            "summary": "Captured conversation context for downstream reuse.",
+            "key_takeaways": [
+                "Captured durable conversation context.",
+                "Stored a snippet for later search and retrieval.",
+                "Next work should clarify what to implement next.",
+            ],
+            "tags": ["captured", "context", "snippet", "follow-up"],
+        }
+        text_payload = json.dumps(
+            {
+                "title": f"Summary: {summary_text}",
+                "details": details,
+                "raw_transcript": "Raw transcript is stored separately.",
+            }
         )
         latency_ms = int((time.perf_counter() - started) * 1000)
         if response_format == "text":
-            text_payload = f"Summary: {summary_text}"
+            text_payload = details["summary"]
         return LLMResponse(
             text=text_payload,
             model="fake-llm",

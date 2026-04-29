@@ -6,6 +6,7 @@ Error envelope shape (all error responses):
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import ProgrammingError
 
 
 class AuthError(Exception):
@@ -57,3 +58,19 @@ async def not_found_error_handler(request: Request, exc: NotFoundError) -> JSONR
 
 async def validation_error_handler(request: Request, exc: ValidationError) -> JSONResponse:
     return _err(422, "validation_error", exc.message, _rid(request))
+
+
+async def programming_error_handler(request: Request, exc: ProgrammingError) -> JSONResponse:
+    """Maps common DDL/runtime errors to a JSON envelope so CORS + dashboard see a real message."""
+    orig = getattr(exc, "orig", None)
+    detail = str(orig or exc)
+    if "does not exist" in detail and "relation" in detail:
+        return _err(
+            503,
+            "schema_out_of_date",
+            "Database is missing tables this API expects (often api_tokens). "
+            "From contexthub/backend, run: uv run alembic upgrade head — "
+            "using the same DATABASE_URL as the running server.",
+            _rid(request),
+        )
+    return _err(500, "database_error", "A database error occurred.", _rid(request))

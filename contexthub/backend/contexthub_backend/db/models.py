@@ -150,7 +150,6 @@ class Push(Base):
         server_default="ch.v0.1",
     )
     title: Mapped[Optional[str]] = mapped_column(Text)
-    commit_message: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
         sa.Enum("pending", "processing", "ready", "failed", name="push_status"),
         nullable=False,
@@ -197,6 +196,9 @@ class Summary(Base):
         sa.Enum(
             "commit_message",
             "structured_block",
+            "title",
+            "summary",
+            "details",
             "raw_transcript",
             name="summary_layer",
         ),
@@ -406,6 +408,9 @@ class Pull(Base):
         sa.Enum(
             "commit_message",
             "structured_block",
+            "title",
+            "summary",
+            "details",
             "raw_transcript",
             name="pull_resolution",
         ),

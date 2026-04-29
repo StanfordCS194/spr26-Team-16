@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 import { TopNav } from "@/components/top-nav";
 
 export const metadata = {
-  title: "ContextHub Dashboard Demo",
-  description: "Visual-only dashboard mock for ContextHub."
+  title: "ContextHub Dashboard",
+  description: "Search, retrieve, and reuse conversation context."
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <div className="layout">
           <TopNav />
           <main className="content">{children}</main>

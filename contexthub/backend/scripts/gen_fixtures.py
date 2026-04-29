@@ -48,7 +48,7 @@ N_AUDIT_ROWS = 100
 
 SOURCE_PLATFORMS = ["claude_ai", "chatgpt", "gemini"]
 PUSH_STATUSES = ["pending", "processing", "ready", "failed"]
-SUMMARY_LAYERS = ["commit_message", "structured_block", "raw_transcript"]
+SUMMARY_LAYERS = ["title", "summary", "details", "raw_transcript"]
 RELATION_TYPES = ["continuation", "reference", "supersession"]
 
 fake = Faker()
@@ -121,7 +121,7 @@ def generate(database_url: str) -> None:
                 user_id=uid,
                 name=fake.bs().title()[:60],
                 slug=f"ws-{i:04d}",
-                settings_json={"default_resolution": "structured_block"} if i % 3 == 0 else None,
+                settings_json={"default_resolution": "summary"} if i % 3 == 0 else None,
             )
             session.add(ws)
             workspaces.append(ws)
@@ -156,7 +156,6 @@ def generate(database_url: str) -> None:
                 source_conversation_id=str(fake.uuid4()) if i % 2 == 0 else None,
                 interchange_version="ch.v0.1",
                 title=fake.sentence(nb_words=5)[:100] if i % 3 != 0 else None,
-                commit_message=fake.sentence(nb_words=8)[:200],
                 status=status,
                 failure_reason="LLM JSON parse error" if status == "failed" else None,
                 idempotency_key=str(fake.uuid4()),
@@ -180,7 +179,15 @@ def generate(database_url: str) -> None:
                     id=uuid7(),
                     push_id=push.id,
                     layer=layer,
-                    content_json={"text": content_md} if layer == "commit_message" else {"spec_version": "ch.v0.1", "decisions": []},
+                    content_json=(
+                        {
+                            "summary": content_md,
+                            "key_takeaways": [fake.sentence(nb_words=7)],
+                            "tags": [fake.word() for _ in range(4)],
+                        }
+                        if layer == "details"
+                        else {"text": content_md}
+                    ),
                     content_markdown=content_md,
                     model="claude-haiku-4-5",
                     prompt_version="summarize_v1.0",
