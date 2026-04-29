@@ -6,7 +6,9 @@ import uuid
 from typing import Any
 
 from arq import Retry
+from asyncpg.exceptions import DeadlockDetectedError
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contexthub_backend.auth.rls import apply_rls_context
@@ -114,13 +116,11 @@ async def summarize_push(
                 redis = ctx.get("redis")
                 if redis is not None:
                     try:
-                        for summary in summaries:
-                            if summary.layer in {"title", "summary", "details"}:
-                                await redis.enqueue_job(
-                                    "embed_summary",
-                                    user_id=str(push.user_id),
-                                    summary_id=str(summary.id),
-                                )
+                        await redis.enqueue_job(
+                            "embed_push_summaries",
+                            user_id=str(push.user_id),
+                            push_id=str(push.id),
+                        )
                     except Exception as exc:
                         # Embedding is best-effort; do not fail completed summarization.
                         logger.warning(
@@ -162,24 +162,70 @@ async def summarize_push(
         await engine.dispose()
 
 
+async def embed_push_summaries(
+    ctx: dict[str, Any], *, user_id: str, push_id: str
+) -> str:
+    """Embed title/summary/details for one push in one transaction (avoids parallel-job deadlocks)."""
+    _ = ctx
+    engine = make_async_engine(settings.async_database_url)
+    embedder = get_embedding_provider(
+        mode="live" if (settings.ai_gateway_api_key or settings.voyage_api_key) else "fake"
+    )
+    layer_order = {"title": 0, "summary": 1, "details": 2}
+    try:
+        try:
+            async with AsyncSession(engine) as session:
+                async with session.begin():
+                    await apply_rls_context(session, user_id=uuid.UUID(user_id))
+                    result = await session.execute(
+                        select(Summary).where(
+                            Summary.push_id == uuid.UUID(push_id),
+                            Summary.layer.in_(["title", "summary", "details"]),
+                        )
+                    )
+                    rows = sorted(
+                        result.scalars().all(),
+                        key=lambda s: layer_order.get(s.layer, 9),
+                    )
+                    for summary in rows:
+                        await embed_summary_service(
+                            summary.id,
+                            embedder=embedder,
+                            session=session,
+                        )
+            return "embedded"
+        except DBAPIError as exc:
+            if isinstance(getattr(exc, "orig", None), DeadlockDetectedError):
+                raise Retry(defer=2) from exc
+            raise
+    finally:
+        await engine.dispose()
+
+
 async def embed_summary(
     ctx: dict[str, Any], *, user_id: str, summary_id: str
 ) -> str:
+    """Legacy per-summary job; prefer embed_push_summaries for new work."""
     _ = ctx
     engine = make_async_engine(settings.async_database_url)
     embedder = get_embedding_provider(
         mode="live" if (settings.ai_gateway_api_key or settings.voyage_api_key) else "fake"
     )
     try:
-        async with AsyncSession(engine) as session:
-            async with session.begin():
-                await apply_rls_context(session, user_id=uuid.UUID(user_id))
-                await embed_summary_service(
-                    uuid.UUID(summary_id),
-                    embedder=embedder,
-                    session=session,
-                )
-        return "embedded"
+        try:
+            async with AsyncSession(engine) as session:
+                async with session.begin():
+                    await apply_rls_context(session, user_id=uuid.UUID(user_id))
+                    await embed_summary_service(
+                        uuid.UUID(summary_id),
+                        embedder=embedder,
+                        session=session,
+                    )
+            return "embedded"
+        except DBAPIError as exc:
+            if isinstance(getattr(exc, "orig", None), DeadlockDetectedError):
+                raise Retry(defer=2) from exc
+            raise
     finally:
         await engine.dispose()
 
@@ -207,6 +253,7 @@ async def purge_revoked_tokens(ctx: dict[str, Any]) -> str:
 class WorkerSettings:
     functions = [
         summarize_push,
+        embed_push_summaries,
         embed_summary,
         purge_soft_deleted_pushes,
         purge_failed_pushes,

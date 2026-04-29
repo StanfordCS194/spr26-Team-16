@@ -13,6 +13,7 @@ class SearchResultItem(BaseModel):
     created_at: datetime
     layer: str
     snippet: str
+    summary: str
     vector_score: float
     text_score: float
     score: float

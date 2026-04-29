@@ -26,7 +26,7 @@ function SidebarApp() {
   const [capturedMessageCount, setCapturedMessageCount] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState("onboarding workflow");
   const [searchResults, setSearchResults] = useState<
-    Array<{ push_id: string; title: string | null; workspace_id: string; snippet: string; score: number }>
+    Array<{ push_id: string; title: string | null; workspace_id: string; summary: string; snippet: string; score: number }>
   >([]);
   const [selectedPushIds, setSelectedPushIds] = useState<string[]>([]);
   const [transcriptSelections, setTranscriptSelections] = useState<Record<string, boolean>>({});
@@ -148,16 +148,22 @@ function SidebarApp() {
       return;
     }
     const items = Array.isArray(res.data?.items) ? res.data.items : [];
-    const deduped = new Map<string, { push_id: string; title: string | null; workspace_id: string; snippet: string; score: number }>();
+    const deduped = new Map<
+      string,
+      { push_id: string; title: string | null; workspace_id: string; summary: string; snippet: string; score: number }
+    >();
     for (const item of items) {
       const key = String(item.push_id);
       const current = deduped.get(key);
       if (!current || Number(current.score) < Number(item.score || 0)) {
+        const summary = String(item.summary ?? "").trim();
+        const snippet = String(item.snippet ?? "").trim();
         deduped.set(key, {
           push_id: key,
           title: item.title ?? null,
           workspace_id: String(item.workspace_id),
-          snippet: String(item.snippet || ""),
+          summary: summary || snippet,
+          snippet,
           score: Number(item.score || 0)
         });
       }
@@ -353,7 +359,9 @@ function SidebarApp() {
                 <span>
                   <code>{result.push_id}</code>
                 </span>
-                <span>{result.snippet}</span>
+                <span style={{ whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "break-word" }}>
+                  {result.summary || result.snippet || "No summary available"}
+                </span>
                 <button
                   className="btn secondary"
                   type="button"

@@ -6,6 +6,7 @@ import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from contexthub_backend.api.errors import (
@@ -16,6 +17,7 @@ from contexthub_backend.api.errors import (
     auth_error_handler,
     forbidden_error_handler,
     not_found_error_handler,
+    programming_error_handler,
     validation_error_handler,
 )
 from contexthub_backend.api.routes import auth as auth_routes
@@ -64,6 +66,7 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
     app.add_exception_handler(ForbiddenError, forbidden_error_handler)
     app.add_exception_handler(NotFoundError, not_found_error_handler)
     app.add_exception_handler(ValidationError, validation_error_handler)
+    app.add_exception_handler(ProgrammingError, programming_error_handler)
 
     # Routers
     app.include_router(health_routes.router, prefix="/v1")

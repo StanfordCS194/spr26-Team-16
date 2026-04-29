@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import Select, String, and_, case, cast, func, literal, select
+from sqlalchemy import Select, and_, case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
@@ -20,6 +20,7 @@ class SearchHit:
     created_at: object
     layer: str
     snippet: str
+    summary: str
     vector_score: float
     text_score: float
     score: float
@@ -83,17 +84,25 @@ async def hybrid_search(
         + func.coalesce(text_score_expr, literal(0.0)) * literal(0.35)
     )
 
-    layers = [
-        "commit_message",
-        "structured_block",
-        "title",
-        "summary",
-        "details",
-    ]
+    # Must match PostgreSQL enum summary_layer (see alembic 001); do not use legacy
+    # ORM-only labels like commit_message / structured_block — Postgres rejects them in binds.
+    layers = ["title", "summary", "details"]
     if include_transcripts:
         layers.append("raw_transcript")
 
-    query_stmt: Select = (
+    # One search hit per push: multiple summary layers (title/summary/details/…) each
+    # produced a separate row, so LIMIT applied to rows — a few pushes could consume the
+    # whole page and hide newer pushes. DISTINCT ON keeps the best-scoring layer per push.
+    score_filter = func.coalesce(score_expr, literal(0.0)) > literal(0.0)
+    base_filters = [
+        Push.status == "ready",
+        Summary.layer.in_(layers),
+        score_filter,
+    ]
+    if workspace_id is not None:
+        base_filters.append(Push.workspace_id == workspace_id)
+
+    ranked_per_push: Select = (
         select(
             Push.id.label("push_id"),
             Push.workspace_id.label("workspace_id"),
@@ -102,27 +111,26 @@ async def hybrid_search(
             Push.created_at.label("created_at"),
             Summary.layer.label("layer"),
             Summary.content_markdown.label("content_markdown"),
-            cast(func.coalesce(vector_score_expr, literal(0.0)), String).label("vector_score"),
-            cast(func.coalesce(text_score_expr, literal(0.0)), String).label("text_score"),
-            cast(func.coalesce(score_expr, literal(0.0)), String).label("score"),
+            func.coalesce(vector_score_expr, literal(0.0)).label("vector_score"),
+            func.coalesce(text_score_expr, literal(0.0)).label("text_score"),
+            func.coalesce(score_expr, literal(0.0)).label("score"),
             Transcript.message_count.label("message_count"),
             Transcript.size_bytes.label("transcript_size_bytes"),
         )
         .join(Summary, Summary.push_id == Push.id)
         .outerjoin(SummaryEmbedding, SummaryEmbedding.summary_id == Summary.id)
         .outerjoin(Transcript, Transcript.push_id == Push.id)
-        .where(
-            and_(
-                Push.status == "ready",
-                Summary.layer.in_(layers),
-                func.coalesce(text_score_expr, literal(0.0)) > literal(0.0),
-            )
-        )
-        .order_by(score_expr.desc(), Push.created_at.desc())
+        .where(and_(*base_filters))
+        .distinct(Push.id)
+        .order_by(Push.id, score_expr.desc(), Push.created_at.desc())
+    )
+
+    best_per_push = ranked_per_push.subquery()
+    query_stmt = (
+        select(best_per_push)
+        .order_by(best_per_push.c.score.desc(), best_per_push.c.created_at.desc())
         .limit(limit)
     )
-    if workspace_id is not None:
-        query_stmt = query_stmt.where(Push.workspace_id == workspace_id)
 
     rows = (await session.execute(query_stmt)).all()
     push_ids = [row.push_id for row in rows]
@@ -130,7 +138,7 @@ async def hybrid_search(
         summary_rows = await session.execute(
             select(Summary.push_id, Summary.content_markdown).where(
                 Summary.push_id.in_(push_ids),
-                Summary.layer.in_(["summary", "structured_block"]),
+                Summary.layer == "summary",
             )
         )
         summaries_by_push = {
@@ -141,7 +149,9 @@ async def hybrid_search(
         summaries_by_push = {}
     hits: list[SearchHit] = []
     for row in rows:
-        display_text = summaries_by_push.get(row.push_id) or row.content_markdown
+        summary_layer_text = (summaries_by_push.get(row.push_id) or "").strip()
+        fallback_layer_text = (row.content_markdown or "").strip()
+        full_summary_text = summary_layer_text or fallback_layer_text
         hits.append(
             SearchHit(
                 push_id=row.push_id,
@@ -150,7 +160,8 @@ async def hybrid_search(
                 status=row.status,
                 created_at=row.created_at,
                 layer=_canonical_layer(row.layer),
-                snippet=_snippet(display_text, query_clean),
+                snippet=_snippet(full_summary_text, query_clean),
+                summary=full_summary_text,
                 vector_score=float(row.vector_score or 0.0),
                 text_score=float(row.text_score or 0.0),
                 score=float(row.score or 0.0),

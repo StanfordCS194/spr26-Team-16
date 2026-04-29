@@ -158,6 +158,16 @@ textarea {
   padding: 10px 12px;
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  accent-color: #3b89c0;
+}
+
 textarea {
   line-height: 1.4;
 }

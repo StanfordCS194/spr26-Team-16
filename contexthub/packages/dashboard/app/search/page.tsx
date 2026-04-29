@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
@@ -11,6 +12,7 @@ type SearchResultItem = {
   created_at: string;
   layer: string;
   snippet: string;
+  summary?: string;
   score: number;
   vector_score: number;
   text_score: number;
@@ -72,7 +74,6 @@ type SummaryDetails = {
 };
 
 type ParsedSummaryDetails = {
-  summary: string;
   key_takeaways: string[];
   tags: string[];
 };
@@ -90,6 +91,49 @@ type PushDetailResponse = {
   transcript_size_bytes: number | null;
   raw_transcript: string | null;
   summaries: PushDetailSummaryLayer[];
+};
+
+type ConversationTurn = { role: "user" | "assistant"; text: string };
+
+function parseConversationTranscript(raw: string | null): ConversationTurn[] | null {
+  if (!raw?.trim()) return null;
+  try {
+    const data = JSON.parse(raw) as {
+      messages?: Array<{ role?: string; content?: unknown }>;
+    };
+    const messages = data.messages;
+    if (!Array.isArray(messages)) return null;
+    const turns: ConversationTurn[] = [];
+    for (const m of messages) {
+      const role: "user" | "assistant" = m.role === "assistant" ? "assistant" : "user";
+      const parts: string[] = [];
+      if (Array.isArray(m.content)) {
+        for (const block of m.content) {
+          if (
+            block &&
+            typeof block === "object" &&
+            "type" in block &&
+            (block as { type?: string }).type === "text" &&
+            typeof (block as { text?: unknown }).text === "string"
+          ) {
+            parts.push((block as { text: string }).text);
+          }
+        }
+      }
+      const text = parts.join("\n").trim();
+      if (text) turns.push({ role, text });
+    }
+    return turns.length ? turns : null;
+  } catch {
+    return null;
+  }
+}
+
+const wrapTextStyle: CSSProperties = {
+  overflowWrap: "break-word",
+  wordBreak: "break-word",
+  whiteSpace: "pre-wrap",
+  maxWidth: "100%"
 };
 
 export default function SearchPage() {
@@ -134,6 +178,7 @@ export default function SearchPage() {
       created_at: item.created_at,
       layer: "summary",
       snippet: item.summary || "No summary available yet.",
+      summary: (item.summary || "").trim(),
       score: 0,
       vector_score: 0,
       text_score: 0
@@ -208,20 +253,12 @@ export default function SearchPage() {
     (detail: PushDetailResponse | undefined): ParsedSummaryDetails => {
       const detailsLayer = detail?.summaries.find((summary) => summary.layer === "details")
         ?.content_json as SummaryDetails | undefined;
-      const summaryLayer = detail?.summaries.find((summary) => summary.layer === "summary")?.content_json;
-      const fallbackSummary = typeof summaryLayer?.text === "string" ? summaryLayer.text : "";
       return {
-        summary: typeof detailsLayer?.summary === "string" ? detailsLayer.summary : fallbackSummary,
         key_takeaways: asStringList(detailsLayer?.key_takeaways),
         tags: asStringList(detailsLayer?.tags)
       };
     },
     [asStringList]
-  );
-
-  const extractSummaryLine = useCallback(
-    (summary: string): string => summary.replace(/\s+/g, " ").trim().slice(0, 220),
-    []
   );
 
   async function toggleDetails(pushId: string) {
@@ -281,23 +318,26 @@ export default function SearchPage() {
   return (
     <div className="grid" style={{ gap: 16 }}>
       <section className="card">
-        <div className="row">
-          <h1 style={{ marginTop: 0, marginBottom: 0 }}>Search and pull</h1>
-          <div className="row" style={{ gap: 8 }}>
-            <button className="button secondary" onClick={refresh} disabled={loading}>
-              {loading ? "Loading..." : "Search"}
-            </button>
-            <button className="button secondary" onClick={refreshAllConversations} disabled={loading}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+            marginBottom: 12
+          }}
+        >
+          <h1 style={{ margin: 0 }}>Search and pull</h1>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, marginLeft: "auto" }}>
+            <button className="button secondary" type="button" onClick={refreshAllConversations} disabled={loading}>
               Show all conversations
             </button>
+            <p className="muted" style={{ margin: 0, textAlign: "right" }}>
+              View: {viewMode === "all" ? "all conversations" : "search results"}
+            </p>
           </div>
         </div>
-        <p className="muted">
-          Uses backend `/v1/search` (hybrid ranking) and `/v1/pulls` to build prompt-ready context payloads.
-        </p>
-        <p className="muted" style={{ marginTop: -6 }}>
-          View: {viewMode === "all" ? "all conversations" : "search results"}
-        </p>
         <div className="grid" style={{ gap: 10 }}>
           <input
             style={{
@@ -328,17 +368,51 @@ export default function SearchPage() {
             }}
             placeholder="Optional workspace UUID filter"
           />
-          <label className="muted" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-            <input
-              type="checkbox"
-              checked={includeTranscripts}
-              onChange={(e) => setIncludeTranscripts(e.target.checked)}
-            />
-            Include transcript summary layer
+          <label className="muted" style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start", maxWidth: "100%" }}>
+            <span
+              style={{
+                display: "flex",
+                flexWrap: "nowrap",
+                gap: 8,
+                alignItems: "center",
+                maxWidth: "100%"
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={includeTranscripts}
+                onChange={(e) => setIncludeTranscripts(e.target.checked)}
+                style={{
+                  flexShrink: 0,
+                  width: "auto",
+                  marginTop: 0,
+                  marginInlineEnd: 0
+                }}
+              />
+              <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>Include raw transcript in search hits</span>
+            </span>
+            <span style={{ fontSize: 12, lineHeight: 1.4, maxWidth: 720 }}>
+              When checked, hybrid search also ranks the stored conversation transcript layer (not just title/summary/details).
+              Useful if your query matches something only said in the full chat. Slightly noisier results when off-topic text
+              appears in transcripts.
+            </span>
           </label>
         </div>
+        <div
+          className="row"
+          style={{
+            marginTop: 16,
+            justifyContent: "flex-start",
+            flexWrap: "wrap",
+            gap: 10
+          }}
+        >
+          <button className="button secondary" type="button" onClick={refresh} disabled={loading}>
+            {loading ? "Loading..." : "Search"}
+          </button>
+        </div>
         {error ? (
-          <p className="muted" style={{ color: "#b02746" }}>
+          <p className="muted" style={{ color: "#b02746", marginTop: 12, marginBottom: 0 }}>
             Error: {error} {requestId ? <span>(request {requestId})</span> : null}
           </p>
         ) : null}
@@ -382,7 +456,7 @@ export default function SearchPage() {
         </article>
 
         {uniquePushes.map((item) => (
-          <article className="card" key={item.push_id}>
+          <article className="card" key={item.push_id} style={{ minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
             <div className="row">
               <h3 style={{ margin: 0 }}>{item.title || "Untitled push"}</h3>
               <span className="pill">{item.status}</span>
@@ -411,15 +485,15 @@ export default function SearchPage() {
               Push: <code>{item.push_id}</code>
             </p>
             <p className="muted">
-              Workspace: <code>{item.workspace_id}</code>
+              Workspace: <code style={wrapTextStyle}>{item.workspace_id}</code>
             </p>
-            <p className="muted">Created: {new Date(item.created_at).toLocaleString()} · Layer: {item.layer}</p>
+            <p className="muted">Created: {new Date(item.created_at).toLocaleString()}</p>
 
-            <div className="grid" style={{ gap: 8 }}>
-              <div>
+            <div className="grid" style={{ gap: 8, minWidth: 0, maxWidth: "100%" }}>
+              <div style={{ minWidth: 0, maxWidth: "100%" }}>
                 <strong>Summary</strong>
-                <p className="muted" style={{ marginTop: 6 }}>
-                  {extractSummaryLine(item.snippet || "No summary available")}
+                <p className="muted" style={{ marginTop: 6, ...wrapTextStyle }}>
+                  {((item.summary?.trim() || item.snippet || "").trim()) || "No summary available"}
                 </p>
               </div>
               <button
@@ -431,7 +505,17 @@ export default function SearchPage() {
                 {expandedPushId === item.push_id ? "Hide details" : "View details"}
               </button>
               {expandedPushId === item.push_id ? (
-                <div className="card" style={{ background: "#f3faff", borderColor: "#b9d7ed" }}>
+                <div
+                  className="card"
+                  style={{
+                    background: "#f3faff",
+                    borderColor: "#b9d7ed",
+                    maxWidth: "100%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
+                    overflow: "hidden"
+                  }}
+                >
                   {detailLoadingPushId === item.push_id ? (
                     <p className="muted" style={{ margin: 0 }}>
                       Loading details...
@@ -439,26 +523,36 @@ export default function SearchPage() {
                   ) : (() => {
                       const detail = pushDetails[item.push_id];
                       const details = detailsFromLayer(detail);
+                      const turns = parseConversationTranscript(detail?.raw_transcript ?? null);
                       return (
-                        <div className="grid" style={{ gap: 10 }}>
-                          <p className="muted" style={{ margin: 0 }}>
-                            <strong>Summary:</strong> {details.summary || "No summary available."}
-                          </p>
-                          <div>
+                        <div className="grid" style={{ gap: 12, minWidth: 0, maxWidth: "100%" }}>
+                          <div style={{ minWidth: 0 }}>
                             <strong>Key takeaways</strong>
                             {details.key_takeaways.length ? (
-                              <ul className="muted" style={{ marginTop: 6 }}>
+                              <ul className="muted" style={{ marginTop: 6, ...wrapTextStyle, paddingLeft: 20 }}>
                                 {details.key_takeaways.map((takeaway) => (
-                                  <li key={takeaway}>{takeaway}</li>
+                                  <li key={takeaway} style={{ marginBottom: 4 }}>
+                                    {takeaway}
+                                  </li>
                                 ))}
                               </ul>
                             ) : (
-                              <p className="muted" style={{ marginTop: 6 }}>None</p>
+                              <p className="muted" style={{ marginTop: 6 }}>
+                                None
+                              </p>
                             )}
                           </div>
-                          <div>
+                          <div style={{ minWidth: 0 }}>
                             <strong>Tags</strong>
-                            <div className="row" style={{ justifyContent: "flex-start", gap: 8, marginTop: 6 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 8,
+                                marginTop: 6,
+                                maxWidth: "100%"
+                              }}
+                            >
                               {details.tags.length ? (
                                 details.tags.map((tag) => (
                                   <span className="pill" key={tag}>
@@ -470,11 +564,48 @@ export default function SearchPage() {
                               )}
                             </div>
                           </div>
-                          <div>
-                            <strong>Raw transcript</strong>
-                            <pre style={{ marginTop: 6, maxHeight: 220, overflow: "auto" }}>
-                              {detail?.raw_transcript || "No transcript available."}
-                            </pre>
+                          <div style={{ minWidth: 0 }}>
+                            <strong>Conversation</strong>
+                            <div
+                              style={{
+                                marginTop: 8,
+                                maxHeight: 360,
+                                overflowY: "auto",
+                                border: "1px solid #b9d7ed",
+                                borderRadius: 8,
+                                padding: 10,
+                                background: "#fff",
+                                ...wrapTextStyle
+                              }}
+                            >
+                              {turns?.length ? (
+                                turns.map((turn, idx) => (
+                                  <div
+                                    key={`${turn.role}-${idx}`}
+                                    style={{
+                                      marginBottom: idx < turns.length - 1 ? 14 : 0,
+                                      ...wrapTextStyle
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontWeight: 700,
+                                        color: turn.role === "user" ? "#0d47a1" : "#2e7d32",
+                                        display: "block",
+                                        marginBottom: 4
+                                      }}
+                                    >
+                                      {turn.role === "user" ? "User" : "Assistant"}:
+                                    </span>
+                                    <span className="muted" style={{ ...wrapTextStyle, display: "block", color: "#123b5a" }}>
+                                      {turn.text}
+                                    </span>
+                                  </div>
+                                ))
+                              ) : (
+                                <span className="muted">No conversation transcript available.</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

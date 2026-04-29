@@ -55,6 +55,7 @@ async def search(
                 created_at=hit.created_at,
                 layer=hit.layer,
                 snippet=hit.snippet,
+                summary=hit.summary,
                 vector_score=hit.vector_score,
                 text_score=hit.text_score,
                 score=hit.score,
