@@ -17,12 +17,12 @@ export default function OverviewPage() {
       <section className="card">
         <div className="row">
           <h3 style={{ margin: 0 }}>What’s live right now</h3>
-          <span className="pill">Modules 4–8</span>
+          <span className="pill">Modules 4–12 (baseline)</span>
         </div>
         <ul className="list" style={{ marginTop: 12 }}>
           <li>- Token mint/list/revoke flows on the Tokens tab.</li>
-          <li>- Push ingestion test form on the Workspaces tab (until workspace listing is added).</li>
-          <li>- Search tab now auto-loads your pushed chats with commit/structured/raw transcript views.</li>
+          <li>- Push ingestion + push status detail available for extension/dashboard polling.</li>
+          <li>- Search tab uses `/v1/search` with pull payload generation via `/v1/pulls`.</li>
         </ul>
       </section>
     </div>

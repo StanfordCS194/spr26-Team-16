@@ -1,6 +1,11 @@
 const launcherId = "ctxh-demo-launcher";
 const sidebarHostId = "ctxh-demo-sidebar-host";
 
+type ScrapedMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
+
 function removeExistingSidebar() {
   const existing = document.getElementById(sidebarHostId);
   if (existing) {
@@ -68,15 +73,134 @@ function ensureLauncher() {
   document.body.appendChild(launcher);
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "ctxh:capture") return;
-  const selection = window.getSelection()?.toString() || "";
-  sendResponse({
-    ok: true,
-    selectionText: selection,
-    pageTitle: document.title,
-    pageUrl: window.location.href
+function extractConversationId(url: string): string | undefined {
+  const match = url.match(/\/chat\/([a-zA-Z0-9-]+)/);
+  return match?.[1];
+}
+
+function inferRole(node: Element): "user" | "assistant" | null {
+  const attrs = [
+    node.getAttribute("data-message-author-role"),
+    node.getAttribute("data-author-role"),
+    node.getAttribute("data-role"),
+    node.getAttribute("aria-label")
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const classes = (node.getAttribute("class") || "").toLowerCase();
+  const blob = `${attrs} ${classes}`;
+  if (blob.includes("assistant") || blob.includes("claude")) return "assistant";
+  if (blob.includes("user") || blob.includes("human")) return "user";
+  return null;
+}
+
+function collectMessageNodes(): Element[] {
+  const selectors = [
+    "[data-message-author-role]",
+    "[data-author-role]",
+    "article[data-testid*='message']",
+    "div[data-testid*='message']",
+    "article",
+    "main article"
+  ];
+  const all = selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
+  const deduped = Array.from(new Set(all));
+  return deduped.filter((node) => {
+    if (node.closest(`#${sidebarHostId}`)) return false;
+    const text = (node.textContent || "").trim();
+    return text.length > 0;
   });
+}
+
+function scrapeMessages(): ScrapedMessage[] {
+  const nodes = collectMessageNodes();
+  const scraped: ScrapedMessage[] = [];
+  for (const node of nodes) {
+    const role = inferRole(node);
+    if (!role) continue;
+    const text = (node.textContent || "").trim();
+    if (!text) continue;
+    scraped.push({ role, text });
+  }
+
+  if (scraped.length > 0) return scraped;
+
+  // Fallback: try common markdown/message blocks and alternate roles.
+  const genericNodes = Array.from(document.querySelectorAll("main p, main pre, main li, main h1, main h2, main h3"));
+  const chunks = genericNodes
+    .map((node) => (node.textContent || "").trim())
+    .filter((text) => text.length > 0)
+    .slice(0, 80);
+  if (!chunks.length) return [];
+  const stitched = chunks.join("\n").trim();
+  if (!stitched) return [];
+  return [{ role: "user", text: stitched }];
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "ctxh:capture") {
+    const pageUrl = window.location.href;
+    const pageTitle = document.title;
+    const scrapedMessages = scrapeMessages();
+    if (!scrapedMessages.length) {
+      sendResponse({
+        ok: false,
+        message: "Could not scrape conversation messages from the current page."
+      });
+      return;
+    }
+    const conversation = {
+      spec_version: "ch.v0.1" as const,
+      source: {
+        platform: "claude_ai" as const,
+        conversation_id: extractConversationId(pageUrl),
+        url: pageUrl,
+        captured_at: new Date().toISOString()
+      },
+      messages: scrapedMessages.map((msg) => ({
+        role: msg.role,
+        content: [{ type: "text" as const, text: msg.text }]
+      })),
+      metadata: {
+        title: pageTitle
+      }
+    };
+
+    sendResponse({
+      ok: true,
+      pageTitle,
+      pageUrl,
+      messageCount: conversation.messages.length,
+      previewText: scrapedMessages[0]?.text?.slice(0, 200) || "",
+      conversation
+    });
+    return;
+  }
+
+  if (message?.type === "ctxh:inject") {
+    const text = String(message?.text || "");
+    const editable = (document.querySelector("div[contenteditable='true']") ||
+      document.querySelector("textarea")) as HTMLElement | null;
+    if (!editable) {
+      sendResponse({ ok: false, message: "Could not find Claude input element" });
+      return;
+    }
+
+    if (editable instanceof HTMLTextAreaElement) {
+      editable.focus();
+      editable.value = text;
+      editable.dispatchEvent(new Event("input", { bubbles: true }));
+      sendResponse({ ok: true, mode: "textarea" });
+      return;
+    }
+
+    editable.focus();
+    editable.textContent = text;
+    editable.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
+    sendResponse({ ok: true, mode: "contenteditable" });
+    return;
+  }
 });
 
 function isClaudeHost() {

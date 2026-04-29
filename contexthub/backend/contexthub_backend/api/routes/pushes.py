@@ -28,6 +28,7 @@ from contexthub_backend.ingress.rate_limit import RateLimiter
 from contexthub_backend.ingress.scrub import scrub_sensitive_patterns
 from contexthub_backend.jobs.registry import enqueue_job
 from contexthub_backend.schemas.pushes import PushAccepted, PushHistoryItem, PushHistoryResponse
+from contexthub_backend.schemas.pushes import PushDetailResponse, PushDetailSummaryLayer
 from contexthub_backend.services.storage import TranscriptStorageService
 
 logger = logging.getLogger(__name__)
@@ -227,4 +228,50 @@ async def get_push_history(
         )
 
     return PushHistoryResponse(items=items)
+
+
+@router.get("/pushes/{push_id}", response_model=PushDetailResponse)
+async def get_push(
+    push_id: uuid.UUID,
+    user: Annotated[AuthUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_rls_session)],
+) -> PushDetailResponse:
+    user.require_scope("read")
+
+    push_result = await session.execute(select(Push).where(Push.id == push_id))
+    push = push_result.scalar_one_or_none()
+    if push is None:
+        raise NotFoundError("push not found")
+
+    summaries_result = await session.execute(select(Summary).where(Summary.push_id == push.id))
+    summaries = summaries_result.scalars().all()
+
+    transcript_result = await session.execute(
+        select(Transcript).where(Transcript.push_id == push.id)
+    )
+    transcript = transcript_result.scalar_one_or_none()
+
+    return PushDetailResponse(
+        id=str(push.id),
+        workspace_id=str(push.workspace_id),
+        status=push.status,
+        failure_reason=push.failure_reason,
+        source_platform=str(push.source_platform),
+        title=push.title,
+        created_at=push.created_at,
+        updated_at=push.updated_at,
+        transcript_message_count=transcript.message_count if transcript else None,
+        transcript_size_bytes=transcript.size_bytes if transcript else None,
+        summaries=[
+            PushDetailSummaryLayer(
+                layer=summary.layer,
+                content_markdown=summary.content_markdown,
+                content_json=summary.content_json,
+                model=summary.model,
+                prompt_version=summary.prompt_version,
+                failure_reason=summary.failure_reason,
+            )
+            for summary in summaries
+        ],
+    )
 

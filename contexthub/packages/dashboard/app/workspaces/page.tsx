@@ -93,15 +93,6 @@ function PushTester() {
           <label className="muted">
             Workspace ID
             <input
-              style={{
-                width: "100%",
-                marginTop: 6,
-                borderRadius: 8,
-                border: "1px solid #355087",
-                background: "#0f1830",
-                color: "#edf2ff",
-                padding: "10px 12px"
-              }}
               value={workspaceId}
               onChange={(e) => persistWorkspaceId(e.target.value)}
               placeholder="22222222-2222-2222-2222-222222222222"
@@ -111,15 +102,6 @@ function PushTester() {
           <label className="muted">
             Idempotency-Key
             <input
-              style={{
-                width: "100%",
-                marginTop: 6,
-                borderRadius: 8,
-                border: "1px solid #355087",
-                background: "#0f1830",
-                color: "#edf2ff",
-                padding: "10px 12px"
-              }}
               value={idempotencyKey}
               onChange={(e) => setIdempotencyKey(e.target.value)}
             />
@@ -129,14 +111,7 @@ function PushTester() {
             ConversationV0 JSON
             <textarea
               style={{
-                width: "100%",
                 minHeight: 240,
-                marginTop: 6,
-                borderRadius: 8,
-                border: "1px solid #355087",
-                background: "#0f1830",
-                color: "#edf2ff",
-                padding: "10px 12px",
                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
                 fontSize: 12
               }}
@@ -159,13 +134,13 @@ function PushTester() {
           </div>
 
           {error ? (
-            <p className="muted" style={{ color: "#ffb4b4" }}>
+            <p className="muted" style={{ color: "#b02746" }}>
               Error: {error} {requestId ? <span>(request {requestId})</span> : null}
             </p>
           ) : null}
 
           {result ? (
-            <div className="card" style={{ background: "#0f1830" }}>
+            <div className="card" style={{ background: "#f3faff" }}>
               <div className="row">
                 <strong>Accepted</strong>
                 <span className="pill">{result.status}</span>

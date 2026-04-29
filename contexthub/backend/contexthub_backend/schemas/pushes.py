@@ -29,3 +29,26 @@ class PushHistoryItem(BaseModel):
 class PushHistoryResponse(BaseModel):
     items: list[PushHistoryItem]
 
+
+class PushDetailSummaryLayer(BaseModel):
+    layer: str
+    content_markdown: str | None
+    content_json: dict
+    model: str | None
+    prompt_version: str | None
+    failure_reason: str | None
+
+
+class PushDetailResponse(BaseModel):
+    id: str
+    workspace_id: str
+    status: str
+    failure_reason: str | None
+    source_platform: str
+    title: str | None
+    created_at: datetime
+    updated_at: datetime
+    transcript_message_count: int | None
+    transcript_size_bytes: int | None
+    summaries: list[PushDetailSummaryLayer]
+

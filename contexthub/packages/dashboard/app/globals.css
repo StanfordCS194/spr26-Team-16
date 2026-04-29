@@ -1,5 +1,5 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * {
@@ -9,8 +9,8 @@
 body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background: #0a1020;
-  color: #f2f5ff;
+  background: linear-gradient(180deg, #dff0ff 0%, #edf7ff 45%, #f5fbff 100%);
+  color: #0f2a45;
 }
 
 a {
@@ -28,14 +28,19 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #20325b;
+  border-bottom: 1px solid #b7d5ef;
   padding: 14px 24px;
-  background: #111a33;
+  background: rgba(248, 253, 255, 0.92);
+  backdrop-filter: blur(6px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .brand {
   font-weight: 700;
   letter-spacing: 0.4px;
+  color: #15496d;
 }
 
 .links {
@@ -46,11 +51,17 @@ a {
 .link {
   padding: 8px 12px;
   border-radius: 8px;
-  color: #b7c8f7;
+  color: #2f5f84;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.link:hover {
+  background: #d5ecfb;
+  color: #143f61;
 }
 
 .link-active {
-  background: #233a70;
+  background: #4d9ed7;
   color: #ffffff;
 }
 
@@ -71,14 +82,15 @@ a {
 }
 
 .card {
-  border: 1px solid #273861;
-  background: #131f3c;
-  border-radius: 12px;
+  border: 1px solid #c6def2;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 14px;
   padding: 16px;
+  box-shadow: 0 8px 18px rgba(54, 110, 156, 0.08);
 }
 
 .muted {
-  color: #b1bfdf;
+  color: #4f6f8c;
 }
 
 .pill {
@@ -86,8 +98,9 @@ a {
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
-  border: 1px solid #3e588f;
-  color: #c9d7ff;
+  border: 1px solid #a8cce8;
+  color: #24597f;
+  background: #edf7ff;
 }
 
 .button {
@@ -95,12 +108,28 @@ a {
   border-radius: 8px;
   padding: 8px 12px;
   font-weight: 600;
-  background: #3f63c8;
-  color: #f7f9ff;
+  background: #3b89c0;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(44, 114, 164, 0.25);
+  cursor: pointer;
+  transition: transform 100ms ease, box-shadow 100ms ease, background 100ms ease;
+}
+
+.button:hover {
+  background: #2f79ad;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(44, 114, 164, 0.3);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .button.secondary {
-  background: #243a71;
+  background: #6cabd9;
 }
 
 .row {
@@ -116,4 +145,25 @@ a {
   padding: 0;
   display: grid;
   gap: 8px;
+}
+
+input,
+textarea {
+  width: 100%;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid #a8cde7;
+  background: #f7fcff;
+  color: #123b5a;
+  padding: 10px 12px;
+}
+
+textarea {
+  line-height: 1.4;
+}
+
+code {
+  background: #e8f4ff;
+  border-radius: 6px;
+  padding: 2px 6px;
 }

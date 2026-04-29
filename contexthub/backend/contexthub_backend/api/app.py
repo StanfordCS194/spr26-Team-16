@@ -20,7 +20,9 @@ from contexthub_backend.api.errors import (
 )
 from contexthub_backend.api.routes import auth as auth_routes
 from contexthub_backend.api.routes import health as health_routes
+from contexthub_backend.api.routes import pulls as pull_routes
 from contexthub_backend.api.routes import pushes as push_routes
+from contexthub_backend.api.routes import search as search_routes
 from contexthub_backend.auth import dependencies as auth_deps
 from contexthub_backend.config import settings
 
@@ -67,5 +69,7 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
     app.include_router(health_routes.router, prefix="/v1")
     app.include_router(auth_routes.router, prefix="/v1")
     app.include_router(push_routes.router, prefix="/v1")
+    app.include_router(search_routes.router, prefix="/v1")
+    app.include_router(pull_routes.router, prefix="/v1")
 
     return app
