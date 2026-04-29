@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import Select, and_, case, func, literal, select
+from sqlalchemy import Select, and_, case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
@@ -26,6 +26,13 @@ class SearchHit:
     score: float
     message_count: int | None
     transcript_size_bytes: int | None
+
+
+MIN_VECTOR_ONLY_SCORE = 0.55
+MIN_VECTOR_ONLY_ABSOLUTE_SCORE = 0.30
+MIN_RELATIVE_SCORE = 0.45
+CANDIDATE_MULTIPLIER = 4
+MAX_CANDIDATES = 100
 
 
 def _canonical_layer(layer: str) -> str:
@@ -54,6 +61,28 @@ def _snippet(text: str | None, query: str) -> str:
     if end < len(source):
         snippet = snippet + "..."
     return snippet
+
+
+def _candidate_limit(limit: int) -> int:
+    return min(max(limit * CANDIDATE_MULTIPLIER, limit), MAX_CANDIDATES)
+
+
+def _passes_relevance_gate(
+    *,
+    vector_score: float,
+    text_score: float,
+    score: float,
+    best_score: float,
+) -> bool:
+    if text_score > 0:
+        return True
+    if vector_score < MIN_VECTOR_ONLY_SCORE:
+        return False
+    if score < MIN_VECTOR_ONLY_ABSOLUTE_SCORE:
+        return False
+    if best_score > 0 and score < best_score * MIN_RELATIVE_SCORE:
+        return False
+    return True
 
 
 async def hybrid_search(
@@ -90,10 +119,17 @@ async def hybrid_search(
     if include_transcripts:
         layers.append("raw_transcript")
 
-    # One search hit per push: multiple summary layers (title/summary/details/…) each
-    # produced a separate row, so LIMIT applied to rows — a few pushes could consume the
-    # whole page and hide newer pushes. DISTINCT ON keeps the best-scoring layer per push.
-    score_filter = func.coalesce(score_expr, literal(0.0)) > literal(0.0)
+    # One search hit per push: multiple summary layers (title/summary/details/...) each
+    # produced a separate row, so LIMIT applied to rows. DISTINCT ON keeps the best
+    # layer per push, and the relevance gate keeps weak semantic-only matches from
+    # filling the page just because vector scores are positive.
+    score_filter = or_(
+        func.coalesce(text_score_expr, literal(0.0)) > literal(0.0),
+        and_(
+            SummaryEmbedding.summary_id.is_not(None),
+            vector_score_expr >= literal(MIN_VECTOR_ONLY_SCORE),
+        ),
+    )
     base_filters = [
         Push.status == "ready",
         Summary.layer.in_(layers),
@@ -129,10 +165,21 @@ async def hybrid_search(
     query_stmt = (
         select(best_per_push)
         .order_by(best_per_push.c.score.desc(), best_per_push.c.created_at.desc())
-        .limit(limit)
+        .limit(_candidate_limit(limit))
     )
 
     rows = (await session.execute(query_stmt)).all()
+    best_score = max((float(row.score or 0.0) for row in rows), default=0.0)
+    rows = [
+        row
+        for row in rows
+        if _passes_relevance_gate(
+            vector_score=float(row.vector_score or 0.0),
+            text_score=float(row.text_score or 0.0),
+            score=float(row.score or 0.0),
+            best_score=best_score,
+        )
+    ][:limit]
     push_ids = [row.push_id for row in rows]
     if push_ids:
         summary_rows = await session.execute(
