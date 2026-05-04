@@ -40,15 +40,6 @@ export function ApiConfig() {
         <label className="muted">
           API base URL
           <input
-            style={{
-              width: "100%",
-              marginTop: 6,
-              borderRadius: 8,
-              border: "1px solid #355087",
-              background: "#0f1830",
-              color: "#edf2ff",
-              padding: "10px 12px"
-            }}
             value={apiBaseUrl}
             onChange={(e) => setApiBaseUrl(e.target.value)}
             placeholder="http://localhost:8000"
@@ -58,15 +49,6 @@ export function ApiConfig() {
         <label className="muted">
           Authorization header or raw token
           <input
-            style={{
-              width: "100%",
-              marginTop: 6,
-              borderRadius: 8,
-              border: "1px solid #355087",
-              background: "#0f1830",
-              color: "#edf2ff",
-              padding: "10px 12px"
-            }}
             value={authHeader}
             onChange={(e) => setAuthHeader(e.target.value)}
             placeholder="Paste JWT, ch_..., or Bearer <token>"
@@ -74,13 +56,13 @@ export function ApiConfig() {
         </label>
 
         <div className="row">
-          <span className="muted">Saved as `Bearer &lt;token&gt;` for `/v1/me`, `/v1/tokens`, and push tests.</span>
+          <span className="muted">Saved as `Bearer &lt;token&gt;` for `/v1/me`, `/v1/tokens`, and push operations.</span>
           <button className="button" onClick={save}>
             Save
           </button>
         </div>
         {saveMessage ? (
-          <p className="muted" style={{ margin: 0, color: "#bfe5c8" }}>
+          <p className="muted" style={{ margin: 0, color: "#2d7a45" }}>
             {saveMessage}
           </p>
         ) : null}

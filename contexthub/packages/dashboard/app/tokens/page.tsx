@@ -112,7 +112,7 @@ export default function TokensPage() {
           token.
         </p>
         {error ? (
-          <p className="muted" style={{ color: "#ffb4b4" }}>
+          <p className="muted" style={{ color: "#b02746" }}>
             Error: {error} {requestId ? <span>(request {requestId})</span> : null}
           </p>
         ) : null}
@@ -131,19 +131,7 @@ export default function TokensPage() {
         <div className="grid" style={{ gap: 10, marginTop: 10 }}>
           <label className="muted">
             Name
-            <input
-              style={{
-                width: "100%",
-                marginTop: 6,
-                borderRadius: 8,
-                border: "1px solid #355087",
-                background: "#0f1830",
-                color: "#edf2ff",
-                padding: "10px 12px"
-              }}
-              value={mintName}
-              onChange={(e) => setMintName(e.target.value)}
-            />
+            <input value={mintName} onChange={(e) => setMintName(e.target.value)} />
           </label>
 
           <div className="row" style={{ justifyContent: "flex-start", gap: 10, flexWrap: "wrap" }}>
@@ -161,7 +149,7 @@ export default function TokensPage() {
           </div>
 
           {mintedRawToken ? (
-            <div className="card" style={{ background: "#0f1830" }}>
+            <div className="card" style={{ background: "#f3faff" }}>
               <p className="muted" style={{ marginTop: 0 }}>
                 Raw token (shown once):
               </p>

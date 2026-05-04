@@ -3,19 +3,25 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 
-from pydantic import ValidationError as PydanticValidationError
+from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
 
-from contexthub_interchange.models import ConversationV0, StructuredBlockV0
-from contexthub_interchange.renderer import render_structured_block
+from contexthub_interchange.models import ConversationV0
 
 from contexthub_backend.providers.base import LLMProvider
 from contexthub_backend.providers.registry import get_prompt
 
 
+class SummaryDetails(BaseModel):
+    summary: str
+    key_takeaways: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
 @dataclass(slots=True)
 class ThreeLayerSummary:
-    commit_message: str
-    structured_block: StructuredBlockV0
+    title: str
+    summary: str
+    details: SummaryDetails
     raw_transcript: str
     model: str
     prompt_version: str
@@ -26,7 +32,7 @@ class ThreeLayerSummary:
     failure_reason: str | None = None
 
 
-def _fallback_commit_message(conversation: ConversationV0) -> str:
+def _fallback_title(conversation: ConversationV0) -> str:
     for msg in conversation.messages:
         for content in msg.content:
             text = getattr(content.root, "text", "")
@@ -75,10 +81,11 @@ async def summarize_push(
         )
         try:
             payload = _extract_json_object(response.text)
-            structured = StructuredBlockV0.model_validate(payload["structured_block"])
+            details = SummaryDetails.model_validate(payload["details"])
             return ThreeLayerSummary(
-                commit_message=payload["commit_message"],
-                structured_block=structured,
+                title=str(payload["title"]).strip(),
+                summary=details.summary.strip(),
+                details=details,
                 raw_transcript="",
                 model=response.model,
                 prompt_version=response.prompt_version,
@@ -88,21 +95,19 @@ async def summarize_push(
                 cost_usd=response.cost_usd,
                 failure_reason=response.failure_reason,
             )
-        except (KeyError, json.JSONDecodeError, PydanticValidationError) as exc:
+        except (KeyError, TypeError, json.JSONDecodeError, PydanticValidationError) as exc:
             snippet = response.text[:500].replace("\n", "\\n")
             failure_reason = f"invalid_summary_json: {exc}; response_snippet={snippet}"
 
-    fallback_block = StructuredBlockV0(
-        spec_version="ch.v0.1",
-        decisions=[],
-        artifacts=[],
-        open_questions=[],
-        assumptions=[],
-        constraints=[],
+    fallback_details = SummaryDetails(
+        summary="Summary unavailable.",
+        key_takeaways=["Summary generation failed."],
+        tags=["context", "fallback", "review", "follow-up"],
     )
     return ThreeLayerSummary(
-        commit_message=_fallback_commit_message(conversation),
-        structured_block=fallback_block,
+        title=_fallback_title(conversation),
+        summary=fallback_details.summary,
+        details=fallback_details,
         raw_transcript="",
         model="fallback",
         prompt_version=prompt_version,
@@ -112,8 +117,4 @@ async def summarize_push(
         cost_usd=0.0,
         failure_reason=failure_reason,
     )
-
-
-def structured_block_markdown(structured_block: StructuredBlockV0) -> str:
-    return render_structured_block(structured_block)
 

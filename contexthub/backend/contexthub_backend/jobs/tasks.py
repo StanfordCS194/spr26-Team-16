@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
+import logging
 import uuid
 from typing import Any
 
 from arq import Retry
+from asyncpg.exceptions import DeadlockDetectedError
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contexthub_backend.auth.rls import apply_rls_context
@@ -15,9 +19,10 @@ from contexthub_backend.providers import get_embedding_provider, get_llm_provide
 from contexthub_backend.services.embeddings import embed_summary as embed_summary_service
 from contexthub_backend.services.storage import TranscriptStorageService
 from contexthub_backend.services.summarizer import (
-    structured_block_markdown,
     summarize_push as summarize_push_service,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def summarize_push(
@@ -55,9 +60,9 @@ async def summarize_push(
                 summaries = [
                     Summary(
                         push_id=push.id,
-                        layer="commit_message",
-                        content_json={"text": result.commit_message},
-                        content_markdown=result.commit_message.strip() + "\n",
+                        layer="title",
+                        content_json={"text": result.title},
+                        content_markdown=result.title.strip() + "\n",
                         model=result.model,
                         prompt_version=result.prompt_version,
                         latency_ms=result.latency_ms,
@@ -68,9 +73,22 @@ async def summarize_push(
                     ),
                     Summary(
                         push_id=push.id,
-                        layer="structured_block",
-                        content_json=result.structured_block.model_dump(mode="json"),
-                        content_markdown=structured_block_markdown(result.structured_block),
+                        layer="summary",
+                        content_json={"text": result.summary},
+                        content_markdown=result.summary.strip() + "\n",
+                        model=result.model,
+                        prompt_version=result.prompt_version,
+                        latency_ms=result.latency_ms,
+                        input_tokens=result.input_tokens,
+                        output_tokens=result.output_tokens,
+                        cost_usd=result.cost_usd,
+                        failure_reason=result.failure_reason,
+                    ),
+                    Summary(
+                        push_id=push.id,
+                        layer="details",
+                        content_json=result.details.model_dump(mode="json"),
+                        content_markdown=json.dumps(result.details.model_dump(mode="json"), indent=2),
                         model=result.model,
                         prompt_version=result.prompt_version,
                         latency_ms=result.latency_ms,
@@ -97,13 +115,18 @@ async def summarize_push(
                 await session.flush()
                 redis = ctx.get("redis")
                 if redis is not None:
-                    for summary in summaries:
-                        if summary.layer in {"commit_message", "structured_block"}:
-                            await redis.enqueue_job(
-                                "embed_summary",
-                                user_id=str(push.user_id),
-                                summary_id=str(summary.id),
-                            )
+                    try:
+                        await redis.enqueue_job(
+                            "embed_push_summaries",
+                            user_id=str(push.user_id),
+                            push_id=str(push.id),
+                        )
+                    except Exception as exc:
+                        # Embedding is best-effort; do not fail completed summarization.
+                        logger.warning(
+                            "embed enqueue failed after summarization",
+                            extra={"push_id": str(push.id), "error": repr(exc)},
+                        )
                 push.status = "ready"
                 session.add(
                     AuditLog(
@@ -139,24 +162,70 @@ async def summarize_push(
         await engine.dispose()
 
 
+async def embed_push_summaries(
+    ctx: dict[str, Any], *, user_id: str, push_id: str
+) -> str:
+    """Embed title/summary/details for one push in one transaction (avoids parallel-job deadlocks)."""
+    _ = ctx
+    engine = make_async_engine(settings.async_database_url)
+    embedder = get_embedding_provider(
+        mode="live" if (settings.ai_gateway_api_key or settings.voyage_api_key) else "fake"
+    )
+    layer_order = {"title": 0, "summary": 1, "details": 2}
+    try:
+        try:
+            async with AsyncSession(engine) as session:
+                async with session.begin():
+                    await apply_rls_context(session, user_id=uuid.UUID(user_id))
+                    result = await session.execute(
+                        select(Summary).where(
+                            Summary.push_id == uuid.UUID(push_id),
+                            Summary.layer.in_(["title", "summary", "details"]),
+                        )
+                    )
+                    rows = sorted(
+                        result.scalars().all(),
+                        key=lambda s: layer_order.get(s.layer, 9),
+                    )
+                    for summary in rows:
+                        await embed_summary_service(
+                            summary.id,
+                            embedder=embedder,
+                            session=session,
+                        )
+            return "embedded"
+        except DBAPIError as exc:
+            if isinstance(getattr(exc, "orig", None), DeadlockDetectedError):
+                raise Retry(defer=2) from exc
+            raise
+    finally:
+        await engine.dispose()
+
+
 async def embed_summary(
     ctx: dict[str, Any], *, user_id: str, summary_id: str
 ) -> str:
+    """Legacy per-summary job; prefer embed_push_summaries for new work."""
     _ = ctx
     engine = make_async_engine(settings.async_database_url)
     embedder = get_embedding_provider(
         mode="live" if (settings.ai_gateway_api_key or settings.voyage_api_key) else "fake"
     )
     try:
-        async with AsyncSession(engine) as session:
-            async with session.begin():
-                await apply_rls_context(session, user_id=uuid.UUID(user_id))
-                await embed_summary_service(
-                    uuid.UUID(summary_id),
-                    embedder=embedder,
-                    session=session,
-                )
-        return "embedded"
+        try:
+            async with AsyncSession(engine) as session:
+                async with session.begin():
+                    await apply_rls_context(session, user_id=uuid.UUID(user_id))
+                    await embed_summary_service(
+                        uuid.UUID(summary_id),
+                        embedder=embedder,
+                        session=session,
+                    )
+            return "embedded"
+        except DBAPIError as exc:
+            if isinstance(getattr(exc, "orig", None), DeadlockDetectedError):
+                raise Retry(defer=2) from exc
+            raise
     finally:
         await engine.dispose()
 
@@ -184,6 +253,7 @@ async def purge_revoked_tokens(ctx: dict[str, Any]) -> str:
 class WorkerSettings:
     functions = [
         summarize_push,
+        embed_push_summaries,
         embed_summary,
         purge_soft_deleted_pushes,
         purge_failed_pushes,

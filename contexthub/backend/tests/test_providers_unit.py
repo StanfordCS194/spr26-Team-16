@@ -21,8 +21,8 @@ async def test_fake_llm_complete_json_response() -> None:
     provider = FakeLLMProvider()
     response = await provider.complete("summarize this conversation", response_format="json")
     payload = json.loads(response.text)
-    assert payload["commit_message"].startswith("Summary:")
-    assert "structured_block" in payload
+    assert payload["title"].startswith("Summary:")
+    assert payload["details"]["summary"]
 
 
 @pytest.mark.asyncio

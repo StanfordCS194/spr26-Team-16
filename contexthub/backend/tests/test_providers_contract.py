@@ -26,7 +26,7 @@ async def test_anthropic_provider_complete_live_recorded() -> None:
     )
     with vcr_cassette.use_cassette("anthropic_complete.yaml"):
         response = await provider.complete(
-            "Return JSON with keys commit_message, structured_block, raw_transcript.",
+            "Return JSON with keys title, details, raw_transcript.",
             response_format="json",
             max_tokens=128,
             temperature=0.0,

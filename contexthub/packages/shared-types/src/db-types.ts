@@ -13,15 +13,17 @@
 export type SourcePlatform = "claude_ai" | "chatgpt" | "gemini";
 export type PushStatus = "pending" | "processing" | "ready" | "failed";
 export type SummaryLayer =
-  | "commit_message"
-  | "structured_block"
+  | "title"
+  | "summary"
+  | "details"
   | "raw_transcript";
 export type RelationType = "continuation" | "reference" | "supersession";
 export type TargetPlatform = "claude_ai";
 export type PullOrigin = "extension" | "dashboard";
 export type PullResolution =
-  | "commit_message"
-  | "structured_block"
+  | "title"
+  | "summary"
+  | "details"
   | "raw_transcript";
 
 // ---------------------------------------------------------------------------
@@ -75,7 +77,6 @@ export interface PushRow {
   source_conversation_id: string | null;
   interchange_version: string;
   title: string | null;
-  commit_message: string | null;
   status: PushStatus;
   failure_reason: string | null;
   idempotency_key: string | null;

@@ -15,7 +15,7 @@ export function TopNav() {
 
   return (
     <header className="top-nav">
-      <div className="brand">ContextHub Dashboard Demo</div>
+      <div className="brand">ContextHub Dashboard</div>
       <nav className="links">
         {navItems.map((item) => {
           const active = pathname === item.href;

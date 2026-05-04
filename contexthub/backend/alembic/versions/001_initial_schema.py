@@ -34,7 +34,7 @@ def upgrade() -> None:
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
         DO $$ BEGIN
-            CREATE TYPE summary_layer AS ENUM ('commit_message', 'structured_block', 'raw_transcript');
+            CREATE TYPE summary_layer AS ENUM ('title', 'summary', 'details', 'raw_transcript');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
         DO $$ BEGIN
@@ -50,7 +50,7 @@ def upgrade() -> None:
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
         DO $$ BEGIN
-            CREATE TYPE pull_resolution AS ENUM ('commit_message', 'structured_block', 'raw_transcript');
+            CREATE TYPE pull_resolution AS ENUM ('title', 'summary', 'details', 'raw_transcript');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
 
@@ -184,7 +184,6 @@ def upgrade() -> None:
             server_default="ch.v0.1",
         ),
         sa.Column("title", sa.Text),
-        sa.Column("commit_message", sa.Text),
         sa.Column(
             "status",
             ENUM(
@@ -240,7 +239,7 @@ def upgrade() -> None:
         sa.Column(
             "layer",
             ENUM(
-                "commit_message", "structured_block", "raw_transcript",
+                "title", "summary", "details", "raw_transcript",
                 name="summary_layer", create_type=False,
             ),
             nullable=False,
@@ -451,7 +450,7 @@ def upgrade() -> None:
         sa.Column(
             "resolution",
             ENUM(
-                "commit_message", "structured_block", "raw_transcript",
+                "title", "summary", "details", "raw_transcript",
                 name="pull_resolution", create_type=False,
             ),
             nullable=False,

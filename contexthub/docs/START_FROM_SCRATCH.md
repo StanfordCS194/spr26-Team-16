@@ -1,30 +1,30 @@
-# ContextHub Full Local Bootstrap (Modules 4-8 + Dashboard + Extension)
+# ContextHub Full Local Bootstrap (Backend + Worker + Dashboard + Extension)
 
-This is the complete "start everything from scratch" runbook.
+This runbook brings up the **entire local system** from a clean state:
+- Postgres + Redis
+- Backend API
+- ARQ worker
+- Dashboard
+- Chrome extension on `claude.ai`
 
-It combines and sequences the flows from:
-- `docs/integration with 123.md`
-- `docs/integration with 4-8.md`
-- `docs/LOCAL_SYSTEM_TEST.md`
-
-Use this when you want a clean local setup that includes:
-- Backend pipeline from Modules 4-8 (providers, ingress, summarizer, embeddings, storage/jobs)
-- Dashboard (`packages/dashboard`)
-- Chrome extension (`packages/extension`)
+It includes end-to-end verification for:
+- Push pipeline (`/v1/workspaces/{id}/pushes` -> summaries + embeddings)
+- Search (`/v1/search`)
+- Pull/context build (`/v1/pulls`)
 
 ---
 
 ## 0) Prerequisites
 
-Install these first:
-- Docker Desktop (for Postgres + Redis)
+Install:
+- Docker Desktop
 - Python 3.12+
 - `uv`
 - Node.js 18.18+ and `pnpm`
 - `psql` CLI
-- Chrome (for loading the extension)
+- Chrome
 
-Then start in repo root:
+Start in repo:
 
 ```bash
 cd /Users/hou/GitHub/spr26-Team-16/contexthub
@@ -32,9 +32,7 @@ cd /Users/hou/GitHub/spr26-Team-16/contexthub
 
 ---
 
-## 1) Install Dependencies (one-time per fresh checkout)
-
-From `contexthub/`:
+## 1) One-time dependency install
 
 ```bash
 pnpm install
@@ -43,9 +41,7 @@ uv sync --all-extras --dev
 
 ---
 
-## 2) Reset and Start Infra (Postgres + Redis)
-
-From `contexthub/backend`:
+## 2) Reset and start infra (Postgres + Redis)
 
 ```bash
 cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
@@ -54,7 +50,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Wait for Postgres readiness:
+Wait for Postgres:
 
 ```bash
 until docker compose exec -T postgres pg_isready -U postgres >/dev/null 2>&1; do
@@ -64,19 +60,9 @@ done
 
 ---
 
-## 3) Export Local Env
+## 3) Create backend `.env`
 
 From `contexthub/backend`:
-
-```bash
-export DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/contexthub_dev
-export SUPABASE_JWT_SECRET=test-secret-not-for-production-at-least-32-bytes
-export REDIS_URL=redis://localhost:6379
-export USER_ID=11111111-1111-1111-1111-111111111111
-export WORKSPACE_ID=22222222-2222-2222-2222-222222222222
-```
-
-Optional: persist these values for later shells:
 
 ```bash
 cat > .env <<'EOF'
@@ -85,10 +71,17 @@ SUPABASE_JWT_SECRET=test-secret-not-for-production-at-least-32-bytes
 REDIS_URL=redis://localhost:6379
 USER_ID=11111111-1111-1111-1111-111111111111
 WORKSPACE_ID=22222222-2222-2222-2222-222222222222
+
+# Live provider path through Vercel AI Gateway:
+AI_GATEWAY_API_KEY=<your-key>
+AI_GATEWAY_BASE_URL=https://ai-gateway.vercel.sh/v1
+AI_GATEWAY_LLM_MODEL=deepseek/deepseek-v4-flash
+AI_GATEWAY_EMBEDDING_MODEL=voyage/voyage-3.5-lite
+AI_GATEWAY_EMBEDDING_DIMENSIONS=1024
 EOF
 ```
 
-Load it in any new backend terminal:
+Load env in each backend terminal:
 
 ```bash
 set -a
@@ -98,16 +91,19 @@ set +a
 
 ---
 
-## 4) Initialize DB Schema + Local Auth Fixtures
-
-From `contexthub/backend`:
+## 4) Initialize database + local auth fixtures
 
 ```bash
+cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
+set -a
+source .env
+set +a
+
 psql "postgresql://postgres:postgres@localhost:5433/contexthub_dev" -f sql/auth_stub.sql
 uv run --package contexthub-backend python -m alembic upgrade head
 ```
 
-Seed one user, profile, workspace, and interchange version:
+Seed a local user/workspace:
 
 ```bash
 psql "postgresql://postgres:postgres@localhost:5433/contexthub_dev" <<SQL
@@ -129,17 +125,13 @@ ON CONFLICT DO NOTHING;
 SQL
 ```
 
-Generate a local JWT:
+Generate JWT for dashboard use:
 
 ```bash
-cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
-set -a
-source .env
-set +a
-
 export JWT=$(uv run --package contexthub-backend python - <<'PY'
 import uuid
 from contexthub_backend.auth.jwt import make_test_jwt
+
 print(make_test_jwt(
     uuid.UUID("11111111-1111-1111-1111-111111111111"),
     "test-secret-not-for-production-at-least-32-bytes",
@@ -149,161 +141,105 @@ PY
 echo "$JWT"
 ```
 
-Quick sanity check:
-
-```bash
-echo "$JWT" | awk -F. '{print "JWT segments:", NF}'
-```
 
 ---
 
-## 5) Start Backend Services (use separate terminals)
+## 5) Start services (4 terminals)
 
-Use three terminals:
-
-### Terminal A - API
+## Terminal A - API
 
 ```bash
 cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
-set -a
-source .env
-set +a
-
+set -a; source .env; set +a
 uv run --package contexthub-backend --with uvicorn \
   uvicorn contexthub_backend.api.app:create_app --factory --host 0.0.0.0 --port 8000
 ```
 
-### Terminal B - Worker
+## Terminal B - Worker
 
 ```bash
 cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
-set -a
-source .env
-set +a
-
+set -a; source .env; set +a
 uv run --package contexthub-backend python -c "from contexthub_backend.jobs.worker import start_worker; start_worker()"
 ```
 
-### Terminal C - Backend smoke checks
-
-```bash
-cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
-set -a
-source .env
-set +a
-
-curl -sS http://localhost:8000/v1/health
-curl -sS http://localhost:8000/v1/me -H "Authorization: Bearer $JWT"
-```
-
----
-
-## 6) Start Dashboard
-
-In a new terminal from `contexthub/`:
+## Terminal C - Dashboard
 
 ```bash
 cd /Users/hou/GitHub/spr26-Team-16/contexthub
 pnpm dashboard:dev
 ```
 
-Open: `http://localhost:3001`
+Open `http://localhost:3001`.
 
-In the Dashboard:
-1. Go to **Overview**.
-2. In **API connection**, set:
-   - API base URL: `http://localhost:8000`
-   - Authorization: your JWT (raw JWT or `Bearer <jwt>` both work)
-     - A JWT should look like `eyJ...` and have 3 dot-separated parts.
-     - Do **not** paste `$JWT` literally; paste the expanded token value.
-     - Do **not** paste a `ch_...` token here before minting.
-3. Click **Save**.
-4. Confirm JWT auth works before opening Tokens:
+## Terminal D - command runner (curl/psql checks)
 
 ```bash
+cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
+set -a; source .env; set +a
+curl -sS http://localhost:8000/v1/health
 curl -sS http://localhost:8000/v1/me -H "Authorization: Bearer $JWT"
 ```
 
-If this returns your `user_id`, your JWT is valid.
-5. Go to **Tokens** page.
-6. Click **Mint token** and copy the raw `ch_...` token (shown once).
+---
+
+## 6) Configure dashboard and mint extension token
+
+In Dashboard:
+1. Go to **Overview** and set API config:
+   - API base URL: `http://localhost:8000`
+   - Authorization: paste JWT value (raw JWT or `Bearer <jwt>`)
+2. Save.
+3. Go to **Tokens** tab.
+4. Ensure scopes include **push**, **pull**, **search**, and **read**.
+5. Click **Mint token**.
+6. Copy the raw `ch_...` token (shown once).
 
 Keep this token for the extension.
 
-If Tokens page shows `unrecognised token format`:
-1. Go back to **Overview** and replace Authorization with a freshly generated JWT.
-2. Save again, then revisit **Tokens** and click **Refresh**.
+If token mint says `unrecognised token format`, your dashboard auth is not JWT. Re-paste JWT in Overview and save again.
 
 ---
 
-## 7) Build and Load Extension
+## 7) Build and load extension
 
-In a new terminal from `contexthub/`:
+Build:
 
 ```bash
 cd /Users/hou/GitHub/spr26-Team-16/contexthub
 pnpm extension:build
 ```
 
-Load unpacked extension in Chrome:
+Load in Chrome:
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
-3. Click **Load unpacked**
-4. Select: `contexthub/packages/extension/dist`
+3. **Load unpacked**
+4. Choose `contexthub/packages/extension/dist`
 5. Open `https://claude.ai`
 6. Click floating **ContextHub** button
 
-In extension sidebar **Connection** section:
+In extension **Connection**:
 - API base URL: `http://localhost:8000`
 - Workspace ID: `22222222-2222-2222-2222-222222222222`
-- API token: paste raw `ch_...` token (without `Bearer `)
-- Click **Save**
-
-Then select some text in Claude and click **Push to ContextHub (real)**.
+- API token: paste raw `ch_...` token (no `Bearer ` prefix)
+- Save
 
 ---
 
-## 8) Verify Summaries Have Been Generated
+## 8) End-to-end check: push -> status -> search -> pull
 
-From `contexthub/backend`:
+### A) Push from extension
 
-```bash
-psql "postgresql://postgres:postgres@localhost:5433/contexthub_dev" -c "
-SELECT
-  layer,
-  model,
-  failure_reason,
-  content_markdown
-FROM summaries
-WHERE push_id = (
-  SELECT id
-  FROM pushes
-  WHERE workspace_id = '$WORKSPACE_ID'
-  ORDER BY created_at DESC
-  LIMIT 1
-)
-ORDER BY
-  CASE layer
-    WHEN 'commit_message' THEN 1
-    WHEN 'structured_block' THEN 2
-    WHEN 'raw_transcript' THEN 3
-  END;
-"
-```
+In `claude.ai`, select text and click **Push to ContextHub (real)** in the extension.
 
-Check pipeline tables:
+Use **Refresh push status** until it shows `ready`.
+
+### B) Verify push and summaries in DB
 
 ```bash
 psql "postgresql://postgres:postgres@localhost:5433/contexthub_dev" -c "
-SELECT id, workspace_id, user_id, status, failure_reason, idempotency_key, created_at, updated_at
+SELECT id, status, failure_reason, idempotency_key, created_at
 FROM pushes
-ORDER BY created_at DESC
-LIMIT 5;
-"
-
-psql "postgresql://postgres:postgres@localhost:5433/contexthub_dev" -c "
-SELECT push_id, storage_path, sha256, size_bytes, message_count
-FROM transcripts
 ORDER BY created_at DESC
 LIMIT 5;
 "
@@ -323,25 +259,72 @@ LIMIT 10;
 "
 ```
 
-Healthy output pattern:
-- latest `pushes.status` becomes `ready`
-- a `transcripts` row exists
-- `summaries` has 3 layers (`commit_message`, `structured_block`, `raw_transcript`)
-- `summary_embeddings` rows exist for embeddable summaries
+Healthy pattern:
+- latest push reaches `ready`
+- three summary layers exist
+- embeddings exist for embeddable layers
+
+### C) Verify search endpoint
+
+```bash
+curl -sS "http://localhost:8000/v1/search?q=local&limit=10" \
+  -H "Authorization: Bearer $JWT"
+```
+
+Expected shape: `{ "query": "...", "items": [...] }`
+
+### D) Verify pull endpoint
+
+Use latest push id:
+
+```bash
+export LAST_PUSH_ID=$(psql "postgresql://postgres:postgres@localhost:5433/contexthub_dev" -Atc "
+SELECT id
+FROM pushes
+WHERE workspace_id = '$WORKSPACE_ID'
+ORDER BY created_at DESC
+LIMIT 1;
+")
+echo "$LAST_PUSH_ID"
+```
+
+Call pull:
+
+```bash
+curl -sS -X POST "http://localhost:8000/v1/pulls" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"push_ids\": [\"$LAST_PUSH_ID\"],
+    \"resolution\": \"structured_block\",
+    \"target_platform\": \"claude_ai\",
+    \"origin\": \"dashboard\"
+  }"
+```
+
+Expected response includes:
+- `payload_markdown`
+- `token_estimate`
+- `provenance`
+
+You can also run this flow from:
+- Dashboard **Search** page (search + build pull payload)
+- Extension **Search and pull** section (pull + inject into Claude input)
 
 ---
 
-## 9) Shutdown / Reset
+## 9) Shutdown and reset
 
-Stop API + worker via `Ctrl+C` in their terminals.
+Stop API/worker/dashboard with `Ctrl+C`.
 
-From `contexthub/backend`:
+Stop infra:
 
 ```bash
+cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
 docker compose down
 ```
 
-To wipe local DB data completely:
+Full reset (wipe DB volume):
 
 ```bash
 docker compose down -v
