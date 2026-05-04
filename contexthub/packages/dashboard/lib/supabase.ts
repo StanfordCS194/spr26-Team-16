@@ -14,13 +14,7 @@ export function getSupabaseClient() {
   }
   supabaseClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-    {
-      auth: {
-        flowType: "pkce",
-        detectSessionInUrl: true
-      }
-    }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
   );
   return supabaseClient;
 }
@@ -43,25 +37,6 @@ export async function signInWithMagicLink(email: string) {
   const client = getSupabaseClient();
   if (!client) throw new Error("Supabase auth is not configured.");
   const { error } = await client.auth.signInWithOtp({ email });
-  if (error) throw error;
-}
-
-/**
- * Browser redirect flow. After Google approves, Supabase redirects back to
- * `redirectTo` (your dashboard); the client picks up the session from the URL.
- */
-export async function signInWithGoogle() {
-  const client = getSupabaseClient();
-  if (!client) throw new Error("Supabase auth is not configured.");
-  if (typeof window === "undefined") {
-    throw new Error("Google sign-in must run in the browser.");
-  }
-  const { error } = await client.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${window.location.origin}/`
-    }
-  });
   if (error) throw error;
 }
 

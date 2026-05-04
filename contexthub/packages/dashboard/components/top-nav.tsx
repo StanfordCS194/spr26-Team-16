@@ -7,7 +7,6 @@ import {
   getSupabaseSession,
   isSupabaseAuthConfigured,
   onSupabaseAuthStateChange,
-  signInWithGoogle,
   signInWithMagicLink,
   signOutSupabase
 } from "@/lib/supabase";
@@ -34,15 +33,6 @@ export function TopNav() {
     });
     return unsubscribe;
   }, [supabaseEnabled]);
-
-  async function continueWithGoogle() {
-    setAuthStatus("Redirecting to Google…");
-    try {
-      await signInWithGoogle();
-    } catch (err) {
-      setAuthStatus(err instanceof Error ? err.message : "Google sign-in failed.");
-    }
-  }
 
   async function sendMagicLink() {
     if (!authEmail.trim()) {
@@ -96,9 +86,6 @@ export function TopNav() {
             </>
           ) : (
             <>
-              <button className="button" onClick={continueWithGoogle} type="button">
-                Continue with Google
-              </button>
               <input
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
