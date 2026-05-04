@@ -28,6 +28,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
   border-bottom: 1px solid #b7d5ef;
   padding: 14px 24px;
   background: rgba(248, 253, 255, 0.92);
@@ -46,6 +48,18 @@ a {
 .links {
   display: flex;
   gap: 12px;
+}
+
+.auth-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.auth-controls input {
+  margin-top: 0;
+  width: 220px;
 }
 
 .link {

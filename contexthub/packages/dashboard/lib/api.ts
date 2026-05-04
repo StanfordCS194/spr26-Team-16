@@ -1,3 +1,5 @@
+import { getSupabaseAccessToken } from "@/lib/supabase";
+
 export type ApiErrorEnvelope = {
   error: { code: string; message: string; request_id?: string };
 };
@@ -73,9 +75,14 @@ export async function apiFetch<T>(
   const baseUrl = getDashboardApiBaseUrl().replace(/\/+$/, "");
   const headers = new Headers(init?.headers);
 
-  const authHeader = getDashboardAuthHeader();
-  if (authHeader) {
-    headers.set("Authorization", authHeader);
+  const supabaseToken = await getSupabaseAccessToken();
+  if (supabaseToken) {
+    headers.set("Authorization", `Bearer ${supabaseToken}`);
+  } else {
+    const authHeader = getDashboardAuthHeader();
+    if (authHeader) {
+      headers.set("Authorization", authHeader);
+    }
   }
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json");

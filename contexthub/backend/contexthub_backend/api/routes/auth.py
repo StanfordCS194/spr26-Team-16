@@ -9,6 +9,7 @@ DELETE /v1/tokens/{id} — revoke a token
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -22,9 +23,13 @@ from contexthub_backend.auth.dependencies import (
     get_rls_session,
     require_jwt,
 )
+from contexthub_backend.auth.jwt import make_test_jwt
 from contexthub_backend.auth.tokens import mint_token, revoke_token
+from contexthub_backend.config import settings
 from contexthub_backend.db.models import ApiToken, Profile
 from contexthub_backend.schemas.auth import (
+    DevLoginRequest,
+    DevLoginResponse,
     MeResponse,
     TokenCreateRequest,
     TokenMintResponse,
@@ -47,6 +52,19 @@ async def get_me(
         user_id=str(user.user_id),
         display_name=profile.display_name if profile else None,
         avatar_url=profile.avatar_url if profile else None,
+    )
+
+
+@router.post("/dev/login", response_model=DevLoginResponse)
+async def dev_login(body: DevLoginRequest) -> DevLoginResponse:
+    if not settings.enable_dev_auth:
+        raise NotFoundError("dev auth endpoint is disabled")
+    user_id = body.user_id or settings.dev_auth_user_id
+    token = make_test_jwt(user_id, settings.supabase_jwt_secret)
+    return DevLoginResponse(
+        token=token,
+        user_id=str(user_id),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
     )
 
 

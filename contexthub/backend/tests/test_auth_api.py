@@ -18,18 +18,20 @@ Tests:
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import uuid
 
 import psycopg
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from contexthub_backend.auth import dependencies as auth_deps
 from contexthub_backend.auth.jwt import make_test_jwt
 from contexthub_backend.auth.tokens import generate_raw_token, hash_token, mint_token
 from contexthub_backend.db.base import make_async_engine
+from contexthub_backend.db.models import ExtensionPairingCode
 from contexthub_backend.db.short_id import uuid7
 from tests.conftest import _psycopg_url
 
@@ -93,14 +95,11 @@ async def client(async_engine):
     os.environ.setdefault("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
     from contexthub_backend.api.app import create_app
-    from contexthub_backend.config import Settings
     import contexthub_backend.config as cfg_module
 
-    # Point settings at test JWT secret
-    cfg_module.settings = Settings(
-        supabase_jwt_secret=TEST_JWT_SECRET,
-        database_url=cfg_module.settings.database_url,
-    )
+    # Point settings at test JWT secret.
+    cfg_module.settings.supabase_jwt_secret = TEST_JWT_SECRET
+    cfg_module.settings.enable_dev_auth = False
 
     app = create_app(engine=async_engine)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -266,6 +265,137 @@ class TestMintToken:
             assert "token" not in item
             assert raw not in str(item)
 
+
+@pytest.mark.integration
+class TestDevLogin:
+    async def test_dev_login_disabled_by_default(self, client):
+        r = await client.post("/v1/dev/login", json={})
+        assert r.status_code == 404
+
+    async def test_dev_login_enabled_returns_valid_jwt(self, client, auth_users):
+        import contexthub_backend.api.routes.auth as auth_routes
+
+        user_id = auth_users["user_a"]
+        previous = auth_routes.settings.enable_dev_auth
+        auth_routes.settings.enable_dev_auth = True
+        try:
+            login_r = await client.post("/v1/dev/login", json={"user_id": str(user_id)})
+            assert login_r.status_code == 200
+            token = login_r.json()["token"]
+            assert token.count(".") == 2
+
+            me_r = await client.get("/v1/me", headers={"Authorization": f"Bearer {token}"})
+            assert me_r.status_code == 200
+            assert me_r.json()["user_id"] == str(user_id)
+        finally:
+            auth_routes.settings.enable_dev_auth = previous
+
+    async def test_dev_login_does_not_create_api_token_rows(self, client):
+        import contexthub_backend.api.routes.auth as auth_routes
+
+        previous = auth_routes.settings.enable_dev_auth
+        auth_routes.settings.enable_dev_auth = True
+        try:
+            before = await client.get("/v1/tokens", headers={"Authorization": f"Bearer {jwt_for(auth_routes.settings.dev_auth_user_id)}"})
+            assert before.status_code == 200
+            before_count = len(before.json())
+
+            login_r = await client.post("/v1/dev/login", json={})
+            assert login_r.status_code == 200
+
+            after = await client.get("/v1/tokens", headers={"Authorization": f"Bearer {jwt_for(auth_routes.settings.dev_auth_user_id)}"})
+            assert after.status_code == 200
+            assert len(after.json()) == before_count
+        finally:
+            auth_routes.settings.enable_dev_auth = previous
+
+
+@pytest.mark.integration
+class TestExtensionPairing:
+    async def test_create_pairing_code_requires_jwt(self, client, auth_users):
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        uid = auth_users["user_a"]
+        async with AsyncSession(auth_deps._get_engine()) as session:
+            async with session.begin():
+                _, raw = await mint_token(
+                    user_id=uid, name="existing-token", scopes=ALL_SCOPES, session=session
+                )
+
+        r = await client.post(
+            "/v1/extension-pairing-codes",
+            json={"token_name": "pairing-token", "scopes": ["push", "read"]},
+            headers={"Authorization": f"Bearer {raw}"},
+        )
+        assert r.status_code == 403
+
+    async def test_create_and_exchange_pairing_code(self, client, auth_users):
+        uid = auth_users["user_a"]
+        create_r = await client.post(
+            "/v1/extension-pairing-codes",
+            json={
+                "token_name": "paired-ext",
+                "scopes": ["push", "read"],
+                "workspace_id": "22222222-2222-2222-2222-222222222222",
+                "api_base_url": "http://localhost:8000",
+            },
+            headers={"Authorization": f"Bearer {jwt_for(uid)}"},
+        )
+        assert create_r.status_code == 201
+        code = create_r.json()["code"]
+
+        exchange_r = await client.post(
+            "/v1/extension-pairing-codes/exchange",
+            json={"code": code},
+        )
+        assert exchange_r.status_code == 200
+        data = exchange_r.json()
+        assert data["token"].startswith("ch_")
+        assert set(data["scopes"]) == {"push", "read"}
+        assert data["workspace_id"] == "22222222-2222-2222-2222-222222222222"
+
+    async def test_exchange_reused_code_rejected(self, client, auth_users):
+        uid = auth_users["user_a"]
+        create_r = await client.post(
+            "/v1/extension-pairing-codes",
+            json={"token_name": "paired-ext", "scopes": ["push"]},
+            headers={"Authorization": f"Bearer {jwt_for(uid)}"},
+        )
+        code = create_r.json()["code"]
+
+        first = await client.post("/v1/extension-pairing-codes/exchange", json={"code": code})
+        assert first.status_code == 200
+        second = await client.post("/v1/extension-pairing-codes/exchange", json={"code": code})
+        assert second.status_code == 401
+
+    async def test_exchange_expired_code_rejected(self, client, auth_users, async_engine):
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        uid = auth_users["user_b"]
+        create_r = await client.post(
+            "/v1/extension-pairing-codes",
+            json={"token_name": "paired-ext", "scopes": ["read"]},
+            headers={"Authorization": f"Bearer {jwt_for(uid)}"},
+        )
+        code = create_r.json()["code"]
+
+        async with AsyncSession(async_engine) as session:
+            async with session.begin():
+                result = await session.execute(
+                    select(ExtensionPairingCode).order_by(ExtensionPairingCode.created_at.desc()).limit(1)
+                )
+                row = result.scalar_one()
+                row.expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+
+        exchange_r = await client.post("/v1/extension-pairing-codes/exchange", json={"code": code})
+        assert exchange_r.status_code == 401
+
+    async def test_exchange_invalid_code_rejected(self, client):
+        r = await client.post(
+            "/v1/extension-pairing-codes/exchange",
+            json={"code": "BADCODE9"},
+        )
+        assert r.status_code == 401
 
 # ---------------------------------------------------------------------------
 # GET /v1/tokens  (list)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,6 +20,9 @@ class Settings(BaseSettings):
 
     # Modules 4-8 settings.
     app_env: str = "dev"
+    enable_dev_auth: bool = False
+    dev_auth_user_id: uuid.UUID = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    pairing_code_ttl_seconds: int = 600
     ai_gateway_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("AI_GATEWAY_API_KEY", "VERCEL_AI_GATEWAY_API_KEY"),

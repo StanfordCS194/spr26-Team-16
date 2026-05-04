@@ -7,6 +7,7 @@ export function ApiConfig() {
   const [apiBaseUrl, setApiBaseUrl] = useState("http://localhost:8000");
   const [authHeader, setAuthHeader] = useState("");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [devLoginLoading, setDevLoginLoading] = useState(false);
 
   const isJwt = useMemo(() => isJwtAuthHeader(authHeader), [authHeader]);
   const isApiToken = useMemo(() => isApiTokenAuthHeader(authHeader), [authHeader]);
@@ -29,6 +30,39 @@ export function ApiConfig() {
     window.dispatchEvent(new Event("ctxh:config:updated"));
   }
 
+  async function useLocalDevLogin() {
+    setDevLoginLoading(true);
+    setSaveMessage(null);
+    try {
+      const baseUrl = apiBaseUrl.replace(/\/+$/, "");
+      const resp = await fetch(`${baseUrl}/v1/dev/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+      const payload = await resp.json();
+      if (!resp.ok) {
+        const message =
+          typeof payload?.error?.message === "string"
+            ? payload.error.message
+            : `Dev login failed (${resp.status}).`;
+        setSaveMessage(message);
+        return;
+      }
+      const token = typeof payload?.token === "string" ? payload.token : "";
+      const normalized = normalizeAuthHeader(token);
+      localStorage.setItem("ctxh_api_base_url", apiBaseUrl);
+      localStorage.setItem("ctxh_auth_header", normalized);
+      setAuthHeader(normalized);
+      setSaveMessage("Saved local dev JWT from /v1/dev/login.");
+      window.dispatchEvent(new Event("ctxh:config:updated"));
+    } catch (err) {
+      setSaveMessage(err instanceof Error ? err.message : "Dev login failed.");
+    } finally {
+      setDevLoginLoading(false);
+    }
+  }
+
   return (
     <section className="card">
       <div className="row">
@@ -47,7 +81,7 @@ export function ApiConfig() {
         </label>
 
         <label className="muted">
-          Authorization header or raw token
+          Manual authorization header or raw token
           <input
             value={authHeader}
             onChange={(e) => setAuthHeader(e.target.value)}
@@ -56,9 +90,15 @@ export function ApiConfig() {
         </label>
 
         <div className="row">
-          <span className="muted">Saved as `Bearer &lt;token&gt;` for `/v1/me`, `/v1/tokens`, and push operations.</span>
+          <span className="muted">Advanced/local fallback. Saved as `Bearer &lt;token&gt;` for dashboard API calls.</span>
           <button className="button" onClick={save}>
             Save
+          </button>
+        </div>
+        <div className="row">
+          <span className="muted">Local dev shortcut: fetch a short-lived JWT from `/v1/dev/login`.</span>
+          <button className="button secondary" onClick={useLocalDevLogin} disabled={devLoginLoading} type="button">
+            {devLoginLoading ? "Signing in..." : "Use local dev login"}
           </button>
         </div>
         {saveMessage ? (

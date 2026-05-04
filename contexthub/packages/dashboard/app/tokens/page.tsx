@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { apiFetch, getDashboardAuthHeader, isJwtAuthHeader } from "@/lib/api";
+import { apiFetch, getDashboardApiBaseUrl, getDashboardAuthHeader, isJwtAuthHeader } from "@/lib/api";
+import { getSupabaseAccessToken } from "@/lib/supabase";
 
 type TokenRow = {
   id: string;
@@ -24,8 +25,12 @@ export default function TokensPage() {
   const [mintScopes, setMintScopes] = useState<string[]>(["push", "read"]);
   const [mintedRawToken, setMintedRawToken] = useState<string | null>(null);
   const [authHeader, setAuthHeader] = useState("");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
+  const [hasSupabaseSession, setHasSupabaseSession] = useState(false);
 
-  const canMint = useMemo(() => isJwtAuthHeader(authHeader), [authHeader]);
+  const canMint = useMemo(() => isJwtAuthHeader(authHeader) || hasSupabaseSession, [authHeader, hasSupabaseSession]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -47,10 +52,13 @@ export default function TokensPage() {
 
   useEffect(() => {
     setAuthHeader(getDashboardAuthHeader());
+    setWorkspaceId(localStorage.getItem("ctxh_workspace_id") || "");
     refresh();
+    getSupabaseAccessToken().then((token) => setHasSupabaseSession(Boolean(token)));
     const handler = () => {
       setAuthHeader(getDashboardAuthHeader());
       refresh();
+      getSupabaseAccessToken().then((token) => setHasSupabaseSession(Boolean(token)));
     };
     window.addEventListener("ctxh:config:updated", handler);
     return () => window.removeEventListener("ctxh:config:updated", handler);
@@ -100,6 +108,35 @@ export default function TokensPage() {
     setMintScopes((prev) => (prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]));
   }
 
+  async function createPairingCode() {
+    setPairingCode(null);
+    setPairingExpiresAt(null);
+    setLoading(true);
+    setError(null);
+    setRequestId(undefined);
+
+    const res = await apiFetch<{ code: string; expires_at: string }>("/v1/extension-pairing-codes", {
+      method: "POST",
+      body: JSON.stringify({
+        token_name: mintName,
+        scopes: mintScopes,
+        workspace_id: workspaceId || null,
+        api_base_url: getDashboardApiBaseUrl()
+      })
+    });
+
+    if (!res.ok) {
+      setError(`${res.message} (pairing requires JWT auth)`);
+      setRequestId(res.requestId);
+      setLoading(false);
+      return;
+    }
+
+    setPairingCode(res.data.code);
+    setPairingExpiresAt(res.data.expires_at);
+    setLoading(false);
+  }
+
   return (
     <div className="grid" style={{ gap: 16 }}>
       <section className="card">
@@ -126,7 +163,7 @@ export default function TokensPage() {
           </button>
         </div>
         <p className="muted">
-          {canMint ? "JWT detected." : "To mint, set Authorization header to a JWT (Bearer ...)."}
+          {canMint ? "JWT auth detected (manual or Supabase session)." : "To mint, sign in with Supabase or set a JWT auth header."}
         </p>
         <div className="grid" style={{ gap: 10, marginTop: 10 }}>
           <label className="muted">
@@ -157,6 +194,36 @@ export default function TokensPage() {
             </div>
           ) : null}
         </div>
+      </section>
+
+      <section className="card">
+        <div className="row">
+          <h3 style={{ margin: 0 }}>Connect extension</h3>
+          <button className="button secondary" onClick={createPairingCode} disabled={!canMint || loading}>
+            Create pairing code
+          </button>
+        </div>
+        <p className="muted">Creates a one-time code for extension setup without copying a raw token.</p>
+        <label className="muted">
+          Workspace ID (optional but recommended)
+          <input
+            value={workspaceId}
+            onChange={(e) => {
+              setWorkspaceId(e.target.value);
+              localStorage.setItem("ctxh_workspace_id", e.target.value);
+            }}
+            placeholder="22222222-2222-2222-2222-222222222222"
+          />
+        </label>
+        {pairingCode ? (
+          <div className="card" style={{ background: "#f3faff", marginTop: 10 }}>
+            <p className="muted" style={{ marginTop: 0 }}>Enter this one-time code in the extension:</p>
+            <code style={{ display: "block", wordBreak: "break-all", fontSize: 18 }}>{pairingCode}</code>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              Expires: {pairingExpiresAt ? new Date(pairingExpiresAt).toLocaleString() : "soon"}
+            </p>
+          </div>
+        ) : null}
       </section>
 
       <section className="card">

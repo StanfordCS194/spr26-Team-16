@@ -62,6 +62,8 @@ function SidebarApp() {
   const [apiBaseUrl, setApiBaseUrl] = useState("http://localhost:8000");
   const [workspaceId, setWorkspaceId] = useState("");
   const [authToken, setAuthToken] = useState("");
+  const [pairingCode, setPairingCode] = useState("");
+  const [pairingMessage, setPairingMessage] = useState<string | null>(null);
   const [status, setStatus] = useState("idle");
   const [lastPushId, setLastPushId] = useState<string | null>(null);
   const [scrubFlags, setScrubFlags] = useState<string[]>([]);
@@ -101,6 +103,57 @@ function SidebarApp() {
 
   function saveSettings() {
     chrome.storage.sync.set({ apiBaseUrl, workspaceId, authToken });
+  }
+
+  async function exchangePairingCode() {
+    setError(null);
+    setPairingMessage(null);
+    const trimmedCode = pairingCode.trim().toUpperCase();
+    if (!apiBaseUrl || !trimmedCode) {
+      setError("Set apiBaseUrl and pairing code first.");
+      return;
+    }
+    try {
+      const res = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/v1/extension-pairing-codes/exchange`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmedCode })
+      });
+      const payload = (await res.json()) as {
+        token?: unknown;
+        workspace_id?: unknown;
+        api_base_url?: unknown;
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        setError(payload?.error?.message || `Pairing failed (${res.status}).`);
+        return;
+      }
+      const token = typeof payload.token === "string" ? payload.token : "";
+      if (!token.startsWith("ch_")) {
+        setError("Pairing response did not include a valid API token.");
+        return;
+      }
+      const resolvedApiBaseUrl = typeof payload.api_base_url === "string" && payload.api_base_url
+        ? payload.api_base_url
+        : apiBaseUrl;
+      const resolvedWorkspaceId = typeof payload.workspace_id === "string" && payload.workspace_id
+        ? payload.workspace_id
+        : workspaceId;
+      setApiBaseUrl(resolvedApiBaseUrl);
+      setWorkspaceId(resolvedWorkspaceId);
+      setAuthToken(token);
+      chrome.storage.sync.set({
+        apiBaseUrl: resolvedApiBaseUrl,
+        workspaceId: resolvedWorkspaceId,
+        authToken: token
+      });
+      setPairingCode("");
+      setStatus("paired");
+      setPairingMessage("Extension connected successfully.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Pairing request failed.");
+    }
   }
 
   async function captureConversation() {
@@ -340,6 +393,20 @@ function SidebarApp() {
                 placeholder="22222222-2222-2222-2222-222222222222"
               />
             </label>
+            <label>
+              Pairing code (from dashboard)
+              <input
+                value={pairingCode}
+                onChange={(e) => setPairingCode(e.target.value)}
+                placeholder="ABCD2345"
+              />
+            </label>
+            <div className="row">
+              <button className="btn secondary" onClick={exchangePairingCode} type="button">
+                Connect with code
+              </button>
+              {pairingMessage ? <span className="muted">{pairingMessage}</span> : null}
+            </div>
             <label>
               API token (raw `ch_...`)
               <input value={authToken} onChange={(e) => setAuthToken(e.target.value)} placeholder="ch_..." />

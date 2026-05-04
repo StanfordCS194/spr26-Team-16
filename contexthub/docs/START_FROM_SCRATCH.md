@@ -68,6 +68,7 @@ From `contexthub/backend`:
 cat > .env <<'EOF'
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/contexthub_dev
 SUPABASE_JWT_SECRET=test-secret-not-for-production-at-least-32-bytes
+ENABLE_DEV_AUTH=true
 REDIS_URL=redis://localhost:6379
 USER_ID=11111111-1111-1111-1111-111111111111
 WORKSPACE_ID=22222222-2222-2222-2222-222222222222
@@ -125,7 +126,7 @@ ON CONFLICT DO NOTHING;
 SQL
 ```
 
-Generate JWT for dashboard use:
+Optional CLI JWT (only needed for manual curl checks):
 
 ```bash
 export JWT=$(uv run --package contexthub-backend python - <<'PY'
@@ -172,7 +173,16 @@ pnpm dashboard:dev
 
 Open `http://localhost:3001`.
 
+For Supabase dashboard login (non-local flow), set dashboard env vars before `pnpm dashboard:dev`:
+
+```bash
+export NEXT_PUBLIC_SUPABASE_URL=<your-supabase-project-url>
+export NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-supabase-anon-key>
+```
+
 ## Terminal D - command runner (curl/psql checks)
+
+Quick check that the API is up (expects JSON from `:8000`, not `:3001`):
 
 ```bash
 cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
@@ -181,23 +191,30 @@ curl -sS http://localhost:8000/v1/health
 curl -sS http://localhost:8000/v1/me -H "Authorization: Bearer $JWT"
 ```
 
+Optional: in a browser, open `http://localhost:8000/docs` (Swagger) after uvicorn is running — **not** `https://`.
+
 ---
 
 ## 6) Configure dashboard and mint extension token
 
-In Dashboard:
+Ports (do not confuse them):
+
+| What | URL |
+|------|-----|
+| **Dashboard UI** (open this in your browser) | `http://localhost:3001` |
+| **ContextHub API** (FastAPI — not the Next dashboard) | `http://localhost:8000` |
+
+`http://localhost:8000` is where the backend listens. Paste that URL into the dashboard’s **API base URL** field so the SPA can call `/v1/...`; it is not the homepage you browse to for the control panel. If Terminal A (uvicorn) is not running, nothing will respond on `:8000`. If you accidentally use **`https://localhost:8000`**, browsers often show errors like **“sent an invalid response”** — use plain **`http`** for local dev.
+
+In Dashboard (already open at **`http://localhost:3001`**):
+
 1. Go to **Overview** and set API config:
-   - API base URL: `http://localhost:8000`
-   - Authorization: paste JWT value (raw JWT or `Bearer <jwt>`)
-2. Save.
+   - **API base URL**: `http://localhost:8000` (exactly this; no trailing slash needed)
+2. Click **Use local dev login** (this calls `/v1/dev/login` and saves a JWT automatically).
 3. Go to **Tokens** tab.
 4. Ensure scopes include **push**, **pull**, **search**, and **read**.
-5. Click **Mint token**.
-6. Copy the raw `ch_...` token (shown once).
-
-Keep this token for the extension.
-
-If token mint says `unrecognised token format`, your dashboard auth is not JWT. Re-paste JWT in Overview and save again.
+5. Click **Create pairing code**.
+6. Copy the one-time pairing code.
 
 ---
 
@@ -221,8 +238,9 @@ Load in Chrome:
 In extension **Connection**:
 - API base URL: `http://localhost:8000`
 - Workspace ID: `22222222-2222-2222-2222-222222222222`
-- API token: paste raw `ch_...` token (no `Bearer ` prefix)
-- Save
+- Pairing code: paste the code from Dashboard -> Tokens -> Connect extension
+- Click **Connect with code**
+- (Optional fallback) paste raw `ch_...` token manually and click **Save**
 
 ---
 
