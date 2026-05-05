@@ -229,14 +229,19 @@ function SidebarApp() {
     );
   });
 
+  const userInitial = (userEmail || "?").charAt(0).toUpperCase();
+
   return (
     <div className="shell">
       <header className="header">
         <div className="row">
-          <h1>Context</h1>
+          <div className="brand">
+            <span className="brand-mark">C</span>
+            ContextHub
+          </div>
           {isConnected ? (
-            <div className="row" style={{ gap: 8 }}>
-              {userEmail ? <span className="muted" style={{ fontSize: 12 }}>{userEmail}</span> : null}
+            <div className="user-chip">
+              <span className="avatar" title={userEmail}>{userInitial}</span>
               <button className="link-btn" onClick={signOut} type="button" title="Sign out">
                 Sign out
               </button>
@@ -247,17 +252,17 @@ function SidebarApp() {
 
       <div className="body">
         {!isConnected ? (
-          <section className="card empty" style={{ textAlign: "center" }}>
-            <p className="muted" style={{ marginTop: 0 }}>
-              Sign in with Google to browse and reuse your past conversations.
-            </p>
+          <section className="signin-hero">
+            <h2>Pick up where you left off</h2>
+            <p>Sign in to save Claude conversations and pull them back into new chats whenever you need.</p>
             <button
-              className="btn"
+              className="signin-button"
               onClick={signInWithGoogle}
               disabled={busy === "signing-in"}
               type="button"
             >
-              {busy === "signing-in" ? "Signing in…" : "Sign in with Google"}
+              <GoogleIcon />
+              {busy === "signing-in" ? "Signing in…" : "Continue with Google"}
             </button>
           </section>
         ) : null}
@@ -265,44 +270,73 @@ function SidebarApp() {
         {isConnected ? (
           <>
             <div className="toolbar">
-              <input
-                className="search"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Search past conversations"
-              />
-              <button className="btn" onClick={saveCurrentChat} disabled={busy !== "idle"}>
+              <div className="search-wrap">
+                <span className="search-icon"><SearchIcon /></span>
+                <input
+                  className="input"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Search your conversations"
+                  type="search"
+                />
+              </div>
+              <button
+                className="btn btn-block"
+                onClick={saveCurrentChat}
+                disabled={busy !== "idle"}
+                type="button"
+              >
+                <PlusIcon />
                 {busy === "saving" ? "Saving…" : "Save current chat"}
               </button>
             </div>
 
             {busy === "loading" ? (
-              <p className="muted">Loading…</p>
+              <div className="loading">
+                <span className="spinner" />
+                Loading conversations…
+              </div>
             ) : filtered.length === 0 ? (
-              <p className="muted">
-                {chats.length === 0
-                  ? "No saved conversations yet. Click “Save current chat” to add this one."
-                  : "No matches."}
-              </p>
+              <div className="empty-state">
+                {chats.length === 0 ? (
+                  <>
+                    <h3>No saved conversations yet</h3>
+                    <p>Open a Claude chat and tap “Save current chat” to add it here.</p>
+                  </>
+                ) : (
+                  <>
+                    <h3>No matches</h3>
+                    <p>Try a different search term.</p>
+                  </>
+                )}
+              </div>
             ) : (
-              <ul className="chat-list">
-                {filtered.map((c) => (
-                  <li key={c.push_id} className="chat-item">
-                    <div className="chat-meta">
-                      <h3 className="chat-title">{c.title || "Untitled conversation"}</h3>
-                      {c.created_at ? <span className="chat-date">{formatDate(c.created_at)}</span> : null}
-                    </div>
-                    {c.summary ? <p className="chat-summary">{c.summary}</p> : null}
-                    <button
-                      className="btn"
-                      onClick={() => addToChat(c.push_id)}
-                      disabled={busy !== "idle"}
-                    >
-                      Add to chat
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <div className="list-header">
+                  <span>{filtered.length} conversation{filtered.length === 1 ? "" : "s"}</span>
+                </div>
+                <ul className="chat-list">
+                  {filtered.map((c) => (
+                    <li key={c.push_id} className="chat-item">
+                      <div className="chat-meta">
+                        <h3 className="chat-title">{c.title || "Untitled conversation"}</h3>
+                        {c.created_at ? <span className="chat-date">{formatDate(c.created_at)}</span> : null}
+                      </div>
+                      {c.summary ? <p className="chat-summary">{c.summary}</p> : null}
+                      <div className="chat-actions">
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => addToChat(c.push_id)}
+                          disabled={busy !== "idle"}
+                          type="button"
+                        >
+                          Add to chat
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </>
         ) : null}
@@ -311,6 +345,34 @@ function SidebarApp() {
         {error ? <p className="toast toast-error">{error}</p> : null}
       </div>
     </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" />
+      <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" />
+      <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.6" />
+      <path d="m11 11 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
   );
 }
 
