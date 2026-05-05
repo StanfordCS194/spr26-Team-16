@@ -1,3 +1,5 @@
+import { getSupabaseAccessToken } from "@/lib/supabase";
+
 export type ApiErrorEnvelope = {
   error: { code: string; message: string; request_id?: string };
 };
@@ -28,9 +30,16 @@ function extractTokenLikeValue(value: string) {
   return stripWrappingQuotes(value);
 }
 
+const DEFAULT_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8765";
+
 export function getDashboardApiBaseUrl() {
-  if (typeof window === "undefined") return "http://localhost:8000";
-  return localStorage.getItem("ctxh_api_base_url") || "http://localhost:8000";
+  if (typeof window === "undefined") return DEFAULT_API_BASE_URL;
+  const stored = localStorage.getItem("ctxh_api_base_url");
+  // Migration: an earlier build defaulted to :8000. Force the new default
+  // so users who set it before don't get stuck on a stale port.
+  if (!stored || stored === "http://localhost:8000") return DEFAULT_API_BASE_URL;
+  return stored;
 }
 
 export function normalizeAuthHeader(value: string) {
@@ -73,9 +82,14 @@ export async function apiFetch<T>(
   const baseUrl = getDashboardApiBaseUrl().replace(/\/+$/, "");
   const headers = new Headers(init?.headers);
 
-  const authHeader = getDashboardAuthHeader();
-  if (authHeader) {
-    headers.set("Authorization", authHeader);
+  const supabaseToken = await getSupabaseAccessToken();
+  if (supabaseToken) {
+    headers.set("Authorization", `Bearer ${supabaseToken}`);
+  } else {
+    const authHeader = getDashboardAuthHeader();
+    if (authHeader) {
+      headers.set("Authorization", authHeader);
+    }
   }
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json");
