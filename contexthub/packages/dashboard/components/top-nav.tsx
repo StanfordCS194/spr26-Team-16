@@ -34,7 +34,7 @@ export function TopNav() {
   return (
     <header className="top-nav">
       <div className="brand">
-        <span className="brand-mark">C</span>
+        <span className="brand-mark" aria-hidden="true" />
         <span className="brand-name">ContextHub</span>
       </div>
 

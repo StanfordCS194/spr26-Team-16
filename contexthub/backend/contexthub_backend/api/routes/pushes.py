@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
@@ -27,9 +28,17 @@ from contexthub_backend.db.models import (
 from contexthub_backend.ingress.rate_limit import RateLimiter
 from contexthub_backend.ingress.scrub import scrub_sensitive_patterns
 from contexthub_backend.jobs.registry import enqueue_job
-from contexthub_backend.schemas.pushes import PushAccepted, PushHistoryItem, PushHistoryResponse
+from contexthub_backend.providers import get_embedding_provider, get_llm_provider
+from contexthub_backend.schemas.pushes import (
+    PushAccepted,
+    PushHistoryItem,
+    PushHistoryResponse,
+    PushUpdateRequest,
+)
 from contexthub_backend.schemas.pushes import PushDetailResponse, PushDetailSummaryLayer
+from contexthub_backend.services.embeddings import embed_summary as embed_summary_service
 from contexthub_backend.services.storage import TranscriptStorageService
+from contexthub_backend.services.summarizer import summarize_push as summarize_push_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["pushes"])
@@ -61,6 +70,87 @@ def _canonical_layer(layer: str) -> str:
     if layer == "structured_block":
         return "summary"
     return layer
+
+
+async def _summarize_inline(
+    push: Push,
+    conversation: ConversationV0,
+    transcript_storage_path: str,
+    session: AsyncSession,
+) -> None:
+    """Run summarization + embedding synchronously inside the push request.
+
+    Used when REDIS_URL is unset (single-machine dev): the ARQ worker isn't
+    running, so we need to do the LLM/embedding work inline. Adds ~2-5s of
+    latency to the push response. Failures are logged but don't fail the push —
+    the row stays at status='pending' and a worker can retry later if one
+    exists.
+    """
+    if not (settings.ai_gateway_api_key or settings.anthropic_api_key):
+        # No LLM configured — leave push as 'pending' and skip silently.
+        return
+
+    try:
+        llm = get_llm_provider(mode="live")
+        result = await summarize_push_service(
+            conversation,
+            llm=llm,
+            prompt_version="summarize_v1",
+        )
+    except Exception as exc:
+        logger.warning(
+            "inline summarization failed",
+            extra={"push_id": str(push.id), "error": repr(exc)},
+        )
+        return
+
+    summary_rows: list[Summary] = []
+    layers = [
+        ("title", {"text": result.title}, result.title.strip() + "\n"),
+        ("summary", {"text": result.summary}, result.summary.strip() + "\n"),
+        (
+            "details",
+            result.details.model_dump(mode="json"),
+            json.dumps(result.details.model_dump(mode="json"), indent=2),
+        ),
+        (
+            "raw_transcript",
+            {"storage_path": transcript_storage_path},
+            None,
+        ),
+    ]
+    for layer, content_json, content_md in layers:
+        row = Summary(
+            push_id=push.id,
+            layer=layer,
+            content_json=content_json,
+            content_markdown=content_md,
+            model=result.model,
+            prompt_version=result.prompt_version,
+            latency_ms=result.latency_ms,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cost_usd=result.cost_usd,
+            failure_reason=result.failure_reason,
+        )
+        session.add(row)
+        summary_rows.append(row)
+    await session.flush()
+
+    # Embeddings: best-effort. Skip if no embedding provider configured.
+    if settings.ai_gateway_api_key or settings.voyage_api_key:
+        try:
+            embedder = get_embedding_provider(mode="live")
+            for row in summary_rows:
+                if row.layer in ("title", "summary", "details"):
+                    await embed_summary_service(row.id, embedder=embedder, session=session)
+        except Exception as exc:
+            logger.warning(
+                "inline embedding failed",
+                extra={"push_id": str(push.id), "error": repr(exc)},
+            )
+
+    push.status = "ready"
 
 
 @router.post(
@@ -139,6 +229,15 @@ async def create_push(
                 request_id=request_id,
                 scrub_flags=scrub_result.findings,
             )
+            # When Redis is not configured, no worker exists to consume the queue.
+            # Run summarization inline so single-machine dev works end-to-end.
+            if not settings.redis_url:
+                await _summarize_inline(
+                    push=push,
+                    conversation=conversation,
+                    transcript_storage_path=stored.storage_path,
+                    session=session,
+                )
         return PushAccepted(
             push_id=str(push.id),
             status=push.status,
@@ -182,7 +281,7 @@ async def get_push_history(
 
     pushes_result = await session.execute(
         select(Push)
-        .where(Push.user_id == user.user_id)
+        .where(Push.user_id == user.user_id, Push.deleted_at.is_(None))
         .order_by(Push.created_at.desc())
         .limit(limit)
     )
@@ -248,7 +347,9 @@ async def get_push(
 ) -> PushDetailResponse:
     user.require_scope("read")
 
-    push_result = await session.execute(select(Push).where(Push.id == push_id))
+    push_result = await session.execute(
+        select(Push).where(Push.id == push_id, Push.deleted_at.is_(None))
+    )
     push = push_result.scalar_one_or_none()
     if push is None:
         raise NotFoundError("push not found")
@@ -293,3 +394,115 @@ async def get_push(
         ],
     )
 
+
+@router.patch("/pushes/{push_id}", response_model=PushDetailResponse)
+async def update_push(
+    push_id: uuid.UUID,
+    body: PushUpdateRequest,
+    user: Annotated[AuthUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_rls_session)],
+) -> PushDetailResponse:
+    """Rename a push. Updates the push.title and the LLM-generated 'title' summary
+    layer (if present), so user-renamed values flow through every list/detail path.
+    """
+    user.require_scope("push")
+
+    result = await session.execute(
+        select(Push).where(Push.id == push_id, Push.deleted_at.is_(None))
+    )
+    push = result.scalar_one_or_none()
+    if push is None:
+        raise NotFoundError("push not found")
+
+    new_title = body.title.strip()
+    push.title = new_title
+    push.updated_at = datetime.now(timezone.utc)
+
+    # Update the title summary layer too so /v1/pushes/history (which prefers
+    # the summary title over push.title) returns the renamed value.
+    title_summary = (
+        await session.execute(
+            select(Summary).where(Summary.push_id == push.id, Summary.layer == "title")
+        )
+    ).scalar_one_or_none()
+    if title_summary is not None:
+        title_summary.content_json = {"text": new_title}
+        title_summary.content_markdown = new_title.strip() + "\n"
+
+    session.add(
+        AuditLog(
+            user_id=user.user_id,
+            action="push.rename",
+            resource_type="push",
+            resource_id=str(push.id),
+            metadata_json={"new_title": new_title},
+        )
+    )
+    await session.flush()
+
+    # Reuse the GET response shape.
+    summaries = (
+        await session.execute(select(Summary).where(Summary.push_id == push.id))
+    ).scalars().all()
+    transcript = (
+        await session.execute(select(Transcript).where(Transcript.push_id == push.id))
+    ).scalar_one_or_none()
+    raw_transcript: str | None = None
+    if transcript is not None:
+        try:
+            conversation = await storage.load_transcript(transcript.storage_path)
+            raw_transcript = json.dumps(conversation.model_dump(mode="json"), indent=2)
+        except Exception:
+            raw_transcript = None
+
+    return PushDetailResponse(
+        id=str(push.id),
+        workspace_id=str(push.workspace_id),
+        status=push.status,
+        failure_reason=push.failure_reason,
+        source_platform=str(push.source_platform),
+        title=push.title,
+        created_at=push.created_at,
+        updated_at=push.updated_at,
+        transcript_message_count=transcript.message_count if transcript else None,
+        transcript_size_bytes=transcript.size_bytes if transcript else None,
+        raw_transcript=raw_transcript,
+        summaries=[
+            PushDetailSummaryLayer(
+                layer=_canonical_layer(s.layer),
+                content_markdown=s.content_markdown,
+                content_json=s.content_json,
+                model=s.model,
+                prompt_version=s.prompt_version,
+                failure_reason=s.failure_reason,
+            )
+            for s in summaries
+        ],
+    )
+
+
+@router.delete("/pushes/{push_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_push(
+    push_id: uuid.UUID,
+    user: Annotated[AuthUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_rls_session)],
+) -> None:
+    """Soft-delete a push. RLS ensures the caller can only delete their own."""
+    user.require_scope("push")
+
+    result = await session.execute(select(Push).where(Push.id == push_id))
+    push = result.scalar_one_or_none()
+    if push is None:
+        raise NotFoundError("push not found")
+    if push.deleted_at is None:
+        push.deleted_at = datetime.now(timezone.utc)
+        session.add(
+            AuditLog(
+                user_id=user.user_id,
+                action="push.delete",
+                resource_type="push",
+                resource_id=str(push.id),
+            )
+        )
+        await session.flush()
+    return None
