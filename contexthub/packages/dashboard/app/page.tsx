@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import {
   getSupabaseSession,
@@ -50,6 +50,11 @@ type PushDetailResponse = {
   summaries: PushDetailSummaryLayer[];
 };
 
+type PullResponse = {
+  payload_markdown: string;
+  token_estimate: number;
+};
+
 type ConversationTurn = { role: "user" | "assistant"; text: string };
 
 function parseTranscript(raw: string | null): ConversationTurn[] | null {
@@ -83,11 +88,51 @@ function parseTranscript(raw: string | null): ConversationTurn[] | null {
   }
 }
 
-function formatDate(iso: string | null | undefined): string {
+function formatRelative(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
+
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffSec = Math.round(diffMs / 1000);
+  const diffMin = Math.round(diffSec / 60);
+  const diffHr = Math.round(diffMin / 60);
+
+  if (diffSec < 60) return "just now";
+  if (diffMin < 60) return `${diffMin} min${diffMin === 1 ? "" : "s"} ago`;
+  if (diffHr < 24 && d.getDate() === now.getDate()) return `${diffHr} hour${diffHr === 1 ? "" : "s"} ago`;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) {
+    return `Yesterday at ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+  }
+
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+  if (d > sevenDaysAgo) {
+    return d.toLocaleDateString(undefined, { weekday: "short" }) +
+      ` at ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+  }
+
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatAbsolute(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 
 function asStringArray(v: unknown): string[] {
@@ -102,6 +147,7 @@ export default function HomePage() {
 
   const [chats, setChats] = useState<ConversationListItem[]>([]);
   const [chatsLoading, setChatsLoading] = useState(false);
+  const [chatsRefreshing, setChatsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
@@ -109,6 +155,17 @@ export default function HomePage() {
   const [detail, setDetail] = useState<PushDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
+
+  const [copyState, setCopyState] = useState<"idle" | "copying" | "copied" | "failed">("idle");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Rename state
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
 
   // ---- auth bootstrap
   useEffect(() => {
@@ -126,11 +183,13 @@ export default function HomePage() {
     return unsubscribe;
   }, [supabaseEnabled]);
 
-  const loadChats = useCallback(async () => {
-    setChatsLoading(true);
+  const loadChats = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (mode === "refresh") setChatsRefreshing(true);
+    else setChatsLoading(true);
     setError(null);
     const res = await apiFetch<PushHistoryResponse>("/v1/pushes/history?limit=50");
     setChatsLoading(false);
+    setChatsRefreshing(false);
     if (!res.ok) {
       setError(res.message);
       return;
@@ -139,7 +198,7 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (signedIn) loadChats();
+    if (signedIn) loadChats("initial");
   }, [signedIn, loadChats]);
 
   // ---- detail load
@@ -150,6 +209,7 @@ export default function HomePage() {
     }
     setDetailLoading(true);
     setShowTranscript(false);
+    setCopyState("idle");
     apiFetch<PushDetailResponse>(`/v1/pushes/${activeId}`).then((res) => {
       setDetailLoading(false);
       if (res.ok) {
@@ -160,6 +220,18 @@ export default function HomePage() {
       }
     });
   }, [activeId]);
+
+  // ---- close kebab menu on outside click
+  useEffect(() => {
+    if (!openMenuId) return;
+    function onDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [openMenuId]);
 
   const filtered = useMemo(() => {
     if (!filter.trim()) return chats;
@@ -178,6 +250,101 @@ export default function HomePage() {
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Sign-in failed.");
     }
+  }
+
+  async function handleCopyContext() {
+    if (!activeId) return;
+    setCopyState("copying");
+    const res = await apiFetch<PullResponse>("/v1/pulls", {
+      method: "POST",
+      body: JSON.stringify({
+        selections: [{ push_id: activeId, include_transcript: true }],
+        target_platform: "claude_ai",
+        origin: "dashboard"
+      })
+    });
+    if (!res.ok) {
+      setCopyState("failed");
+      setError(res.message);
+      setTimeout(() => setCopyState("idle"), 2000);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(res.data.payload_markdown);
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 2000);
+    } catch {
+      setCopyState("failed");
+      setTimeout(() => setCopyState("idle"), 2000);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setOpenMenuId(null);
+    if (!confirm("Delete this conversation? This can't be undone.")) return;
+    setDeletingId(id);
+    const res = await apiFetch<null>(`/v1/pushes/${id}`, { method: "DELETE" });
+    setDeletingId(null);
+    if (!res.ok) {
+      setError(res.message);
+      return;
+    }
+    setChats((cur) => cur.filter((c) => c.id !== id));
+    if (activeId === id) {
+      setActiveId(null);
+      setDetail(null);
+    }
+  }
+
+  function startRename(id: string, currentTitle: string) {
+    setOpenMenuId(null);
+    setActiveId(id);
+    setRenamingId(id);
+    setRenameDraft(currentTitle);
+    // Focus the input on the next tick after it's rendered.
+    setTimeout(() => renameInputRef.current?.select(), 0);
+  }
+
+  function cancelRename() {
+    setRenamingId(null);
+    setRenameDraft("");
+  }
+
+  async function commitRename() {
+    if (!renamingId) return;
+    const next = renameDraft.trim();
+    if (!next) {
+      cancelRename();
+      return;
+    }
+    // Skip API call if title is unchanged.
+    const current = chats.find((c) => c.id === renamingId);
+    const existing = current?.title || current?.conversation_title || "";
+    if (next === existing) {
+      cancelRename();
+      return;
+    }
+    setRenameSaving(true);
+    const res = await apiFetch<PushDetailResponse>(`/v1/pushes/${renamingId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title: next })
+    });
+    setRenameSaving(false);
+    if (!res.ok) {
+      setError(res.message);
+      cancelRename();
+      return;
+    }
+    // Optimistic update on the list + detail.
+    setChats((cur) =>
+      cur.map((c) =>
+        c.id === renamingId ? { ...c, title: next, conversation_title: next } : c
+      )
+    );
+    if (detail && detail.id === renamingId) {
+      setDetail({ ...detail, title: next });
+    }
+    cancelRename();
   }
 
   // ---- render
@@ -205,21 +372,10 @@ export default function HomePage() {
 
   if (!signedIn) {
     return (
-      <section className="signin-hero">
-        <h2>Welcome to ContextHub</h2>
-        <p>
-          Sign in to browse and search the Claude conversations you've saved from the extension.
-        </p>
-        <button className="signin-button" onClick={handleSignIn} type="button">
-          <GoogleIcon />
-          Continue with Google
-        </button>
-        {authError ? <p className="toast toast-error">{authError}</p> : null}
-      </section>
+      <PreLoginPage onSignIn={handleSignIn} authError={authError} />
     );
   }
 
-  const activeIsActive = (id: string) => activeId === id;
   const detailDetails = detail
     ? {
         summary:
@@ -234,10 +390,10 @@ export default function HomePage() {
   const turns = detail ? parseTranscript(detail.raw_transcript) : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="page">
       <div className="page-heading">
         <h1>Your conversations</h1>
-        <p>Search past Claude conversations you've saved from the extension.</p>
+        <p>Search and reuse Claude conversations you've saved from the extension.</p>
       </div>
 
       <div className="hero-search">
@@ -264,6 +420,16 @@ export default function HomePage() {
             <span className="list-panel-title">
               {filtered.length} conversation{filtered.length === 1 ? "" : "s"}
             </span>
+            <button
+              className="icon-btn"
+              onClick={() => loadChats("refresh")}
+              disabled={chatsRefreshing || chatsLoading}
+              type="button"
+              aria-label="Refresh"
+              title="Refresh"
+            >
+              <RefreshIcon spinning={chatsRefreshing} />
+            </button>
           </div>
 
           <div className="list-scroll">
@@ -287,20 +453,72 @@ export default function HomePage() {
                 )}
               </div>
             ) : (
-              filtered.map((c) => (
-                <button
-                  key={c.id}
-                  className={`list-item${activeIsActive(c.id) ? " is-active" : ""}`}
-                  onClick={() => setActiveId(c.id)}
-                  type="button"
-                >
-                  <h3 className="list-item-title">
-                    {c.title || c.conversation_title || "Untitled conversation"}
-                  </h3>
-                  {c.summary ? <p className="list-item-snippet">{c.summary}</p> : null}
-                  <span className="list-item-date">{formatDate(c.created_at)}</span>
-                </button>
-              ))
+              filtered.map((c) => {
+                const isActive = activeId === c.id;
+                const isMenuOpen = openMenuId === c.id;
+                return (
+                  <div
+                    key={c.id}
+                    className={`list-item-wrap${isActive ? " is-active" : ""}`}
+                  >
+                    <button
+                      className={`list-item${isActive ? " is-active" : ""}`}
+                      onClick={() => setActiveId(c.id)}
+                      type="button"
+                      disabled={deletingId === c.id}
+                    >
+                      <h3 className="list-item-title">
+                        {c.title || c.conversation_title || "Untitled conversation"}
+                      </h3>
+                      {c.summary ? <p className="list-item-snippet">{c.summary}</p> : null}
+                      <span className="list-item-date" title={formatAbsolute(c.created_at)}>
+                        {formatRelative(c.created_at)}
+                      </span>
+                    </button>
+                    <div
+                      className="list-item-menu"
+                      ref={isMenuOpen ? menuRef : null}
+                    >
+                      <button
+                        className="kebab-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(isMenuOpen ? null : c.id);
+                        }}
+                        type="button"
+                        aria-label="More options"
+                      >
+                        <KebabIcon />
+                      </button>
+                      {isMenuOpen ? (
+                        <div className="kebab-menu" role="menu">
+                          <button
+                            className="kebab-item"
+                            onClick={() =>
+                              startRename(
+                                c.id,
+                                c.title || c.conversation_title || ""
+                              )
+                            }
+                            type="button"
+                            role="menuitem"
+                          >
+                            <PencilIcon /> Rename
+                          </button>
+                          <button
+                            className="kebab-item kebab-danger"
+                            onClick={() => handleDelete(c.id)}
+                            type="button"
+                            role="menuitem"
+                          >
+                            <TrashIcon /> Delete
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </aside>
@@ -324,10 +542,59 @@ export default function HomePage() {
           ) : (
             <article className="detail-content">
               <header className="detail-header">
-                <h2 className="detail-title">{detail.title || "Untitled conversation"}</h2>
+                <div className="detail-header-row">
+                  {renamingId === detail.id ? (
+                    <input
+                      ref={renameInputRef}
+                      className="input detail-title-input"
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitRename();
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          cancelRename();
+                        }
+                      }}
+                      disabled={renameSaving}
+                      placeholder="Conversation title"
+                      autoFocus
+                    />
+                  ) : (
+                    <h2
+                      className="detail-title detail-title-editable"
+                      onClick={() => startRename(detail.id, detail.title || "")}
+                      title="Click to rename"
+                    >
+                      {detail.title || "Untitled conversation"}
+                      <span className="detail-title-edit-hint" aria-hidden="true">
+                        <PencilIcon />
+                      </span>
+                    </h2>
+                  )}
+                  <button
+                    className={`btn copy-btn ${copyState !== "idle" ? "copy-" + copyState : ""}`}
+                    onClick={handleCopyContext}
+                    disabled={copyState === "copying"}
+                    type="button"
+                  >
+                    {copyState === "copying" ? (
+                      <><span className="spinner spinner-on-blue" /> Copying…</>
+                    ) : copyState === "copied" ? (
+                      <><CheckIcon /> Copied</>
+                    ) : copyState === "failed" ? (
+                      <>Copy failed — try again</>
+                    ) : (
+                      <><CopyIcon /> Copy context</>
+                    )}
+                  </button>
+                </div>
                 <div className="detail-meta">
                   <span className={`status-pill status-${detail.status}`}>{detail.status}</span>
-                  <span>{formatDate(detail.created_at)}</span>
+                  <span title={formatAbsolute(detail.created_at)}>{formatRelative(detail.created_at)}</span>
                   <span>{detail.source_platform}</span>
                 </div>
               </header>
@@ -401,6 +668,158 @@ export default function HomePage() {
   );
 }
 
+function PreLoginPage({
+  onSignIn,
+  authError
+}: {
+  onSignIn: () => void;
+  authError: string | null;
+}) {
+  return (
+    <div className="prelogin">
+      <section className="marketing-hero" aria-labelledby="marketing-title">
+        <div className="marketing-copy">
+          <p className="eyebrow">ContextHub for Claude.ai</p>
+          <h1 id="marketing-title">Version control for your AI conversations</h1>
+          <p className="hero-lede">
+            Turn important Claude chats into committed, searchable, reusable context.
+            Push finished conversations, search past work semantically, and pull the
+            exact decisions, artifacts, and open questions into your next chat.
+          </p>
+          <div className="hero-actions">
+            <button className="button hero-primary" onClick={onSignIn} type="button">
+              Get started: Sign in with Google
+              <GoogleIcon />
+            </button>
+            <a className="button secondary hero-secondary" href="#how-it-works">
+              See how it works
+            </a>
+          </div>
+          {authError ? <p className="toast toast-error">{authError}</p> : null}
+          <div className="hero-proof" aria-label="Product capabilities">
+            <span>Claude.ai first</span>
+            <span>Structured summaries</span>
+            <span>Provenance on every pull</span>
+          </div>
+        </div>
+
+        <div className="hero-explainer" aria-label="ContextHub push search pull overview">
+          <div className="hero-visual">
+            <img
+              src="/images/contexthub-hero.png"
+              alt="ContextHub product flow showing Push, Search, and Pull stages"
+            />
+          </div>
+          <div className="mini-flow" aria-label="Push search pull flow">
+            <span>Finished chat</span>
+            <strong>Push</strong>
+            <strong>Search</strong>
+            <strong>Pull</strong>
+            <span>New chat with context</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="problem-band" aria-label="Why ContextHub exists">
+        <div>
+          <p className="section-kicker">The problem</p>
+          <h2>Good AI work gets buried in chat history.</h2>
+        </div>
+        <p>
+          LLM conversations contain real decisions, specs, code, assumptions, and
+          unresolved questions. ContextHub preserves that work as structured memory
+          you can trust, search, and reuse.
+        </p>
+      </section>
+
+      <section className="marketing-section" id="how-it-works" aria-labelledby="loop-title">
+        <div className="section-heading">
+          <p className="section-kicker">Core loop</p>
+          <h2 id="loop-title">Push, search, pull.</h2>
+          <p>
+            A deliberately simple workflow for turning finished conversations into
+            durable project context.
+          </p>
+        </div>
+        <div className="flow-grid">
+          <div className="flow-step">
+            <span className="flow-icon">01</span>
+            <h3>Push</h3>
+            <p>Save a finished Claude conversation from the browser extension.</p>
+          </div>
+          <div className="flow-step">
+            <span className="flow-icon">02</span>
+            <h3>Search</h3>
+            <p>Find prior work with natural-language search over structured summaries.</p>
+          </div>
+          <div className="flow-step">
+            <span className="flow-icon">03</span>
+            <h3>Pull</h3>
+            <p>Inject the right context back into a new chat with source provenance.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="marketing-section split-section" aria-labelledby="resolutions-title">
+        <div className="section-heading left">
+          <p className="section-kicker">Context resolutions</p>
+          <h2 id="resolutions-title">Choose how much memory the next chat needs.</h2>
+          <p>
+            ContextHub keeps every push at three resolutions, from a compact reminder
+            to the full normalized transcript.
+          </p>
+        </div>
+        <div className="resolution-panel" aria-label="Three saved context resolutions">
+          <div className="resolution-row">
+            <span>Commit message</span>
+            <p>One-line searchable reminder.</p>
+          </div>
+          <div className="resolution-row featured">
+            <span>Structured block</span>
+            <p>Decisions, artifacts, questions, assumptions, and constraints.</p>
+          </div>
+          <div className="resolution-row">
+            <span>Raw transcript</span>
+            <p>The full conversation when you need everything.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="marketing-section audience-section" aria-labelledby="audience-title">
+        <div className="section-heading">
+          <p className="section-kicker">Built for</p>
+          <h2 id="audience-title">People doing real work with AI.</h2>
+        </div>
+        <div className="audience-grid">
+          <div>
+            <h3>Project teams</h3>
+            <p>Keep specs, tradeoffs, and design decisions from disappearing.</p>
+          </div>
+          <div>
+            <h3>Engineers</h3>
+            <p>Reuse debugging trails, implementation plans, and generated artifacts.</p>
+          </div>
+          <div>
+            <h3>Researchers</h3>
+            <p>Bring prior analysis and open questions into the next investigation.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="final-cta" aria-labelledby="beta-title">
+        <div>
+          <p className="section-kicker">Get started</p>
+          <h2 id="beta-title">Start building a memory layer for your Claude work.</h2>
+        </div>
+        <button className="button" onClick={onSignIn} type="button">
+          Sign in with Google
+          <GoogleIcon />
+        </button>
+      </section>
+    </div>
+  );
+}
+
 function GoogleIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -425,6 +844,68 @@ function CloseIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path d="m3 3 8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2.5 9.5V3a.5.5 0 0 1 .5-.5h6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="m3 7.5 3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ spinning }: { spinning?: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      style={spinning ? { animation: "spin 0.7s linear infinite" } : undefined}
+    >
+      <path d="M2 7a5 5 0 0 1 8.5-3.5L12 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 2v3h-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 7a5 5 0 0 1-8.5 3.5L2 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M2 12V9h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function KebabIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="7" cy="3" r="1.2" fill="currentColor" />
+      <circle cx="7" cy="7" r="1.2" fill="currentColor" />
+      <circle cx="7" cy="11" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M3 4h8M5.5 4V2.5h3V4M4 4l.5 7.5h5L10 4M6 6.5v3M8 6.5v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M8.9 2.4 11.6 5.1M2.5 11.5l2.9-.6 6.1-6.1a1.9 1.9 0 0 0-2.7-2.7L2.8 8.2l-.6 3c-.1.2.1.4.3.3Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PushAccepted(BaseModel):
@@ -10,6 +11,10 @@ class PushAccepted(BaseModel):
     status: str
     request_id: str
     scrub_flags: list[str] = []
+
+
+class PushUpdateRequest(BaseModel):
+    title: Annotated[str, Field(min_length=1, max_length=200)]
 
 
 class PushHistoryItem(BaseModel):
