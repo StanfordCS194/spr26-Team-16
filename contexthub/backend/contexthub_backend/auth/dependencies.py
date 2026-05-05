@@ -104,7 +104,11 @@ async def get_current_user(
     token = _extract_bearer(authorization)
 
     if _is_jwt(token):
-        user_id = verify_supabase_jwt(token, settings.supabase_jwt_secret)
+        user_id = verify_supabase_jwt(
+            token,
+            settings.supabase_jwt_secret,
+            jwks_url=settings.resolved_supabase_jwks_url,
+        )
         return AuthUser(user_id=user_id, scopes=list(ALL_SCOPES), auth_type="jwt")
 
     if token.startswith("ch_"):
@@ -121,10 +125,16 @@ async def get_rls_session(
 ) -> AsyncSession:
     """Apply RLS context to the open transaction and return the session.
 
-    After this point every query runs as ch_authenticated with auth.uid()
-    returning the authenticated user's UUID.
+    On Supabase, switch to the platform's built-in `authenticated` role and
+    set `request.jwt.claim.sub` so Supabase's auth.uid() resolves to our user.
+    Also set `app.current_user_id` for any policies/triggers in our migrations
+    that read it directly.
     """
-    await session.execute(text("SET LOCAL ROLE ch_authenticated"))
+    await session.execute(text("SET LOCAL ROLE authenticated"))
+    await session.execute(
+        text("SELECT set_config('request.jwt.claim.sub', :uid, true)"),
+        {"uid": str(user.user_id)},
+    )
     await session.execute(
         text("SELECT set_config('app.current_user_id', :uid, true)"),
         {"uid": str(user.user_id)},

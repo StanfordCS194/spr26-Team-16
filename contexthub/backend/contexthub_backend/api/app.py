@@ -21,7 +21,9 @@ from contexthub_backend.api.errors import (
     validation_error_handler,
 )
 from contexthub_backend.api.routes import auth as auth_routes
+from contexthub_backend.api.routes import google_auth as google_auth_routes
 from contexthub_backend.api.routes import health as health_routes
+from contexthub_backend.api.routes import me_bootstrap as me_bootstrap_routes
 from contexthub_backend.api.routes import pulls as pull_routes
 from contexthub_backend.api.routes import pushes as push_routes
 from contexthub_backend.api.routes import search as search_routes
@@ -46,7 +48,8 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$",
+        # Allow localhost (dashboard dev) and Chrome extensions (chrome-extension://<id>).
+        allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1):\d+|chrome-extension://[a-z]+)$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -71,6 +74,8 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
     # Routers
     app.include_router(health_routes.router, prefix="/v1")
     app.include_router(auth_routes.router, prefix="/v1")
+    app.include_router(google_auth_routes.router, prefix="/v1")
+    app.include_router(me_bootstrap_routes.router, prefix="/v1")
     app.include_router(push_routes.router, prefix="/v1")
     app.include_router(search_routes.router, prefix="/v1")
     app.include_router(pull_routes.router, prefix="/v1")

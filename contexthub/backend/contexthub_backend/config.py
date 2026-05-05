@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,6 +20,13 @@ class Settings(BaseSettings):
 
     # Modules 4-8 settings.
     app_env: str = "dev"
+    enable_dev_auth: bool = False
+    dev_auth_user_id: uuid.UUID = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    pairing_code_ttl_seconds: int = 600
+    # Google Sign-In: OAuth 2.0 client IDs the backend will accept ID tokens for.
+    # Comma-separated. The extension and dashboard each need their own client ID
+    # (different application types in Google Cloud Console).
+    google_oauth_client_ids: str = ""
     ai_gateway_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("AI_GATEWAY_API_KEY", "VERCEL_AI_GATEWAY_API_KEY"),
@@ -43,6 +52,17 @@ class Settings(BaseSettings):
     )
     supabase_url: str | None = None
     supabase_service_key: str | None = None
+    # JWKS URL for verifying Supabase asymmetric (ES256/RS256) JWTs.
+    # If unset, derived from supabase_url at access time.
+    supabase_jwks_url: str | None = None
+
+    @property
+    def resolved_supabase_jwks_url(self) -> str | None:
+        if self.supabase_jwks_url:
+            return self.supabase_jwks_url
+        if self.supabase_url:
+            return self.supabase_url.rstrip("/") + "/auth/v1/.well-known/jwks.json"
+        return None
     transcript_bucket: str = "transcripts"
     rate_limit_per_minute: int = 30
 
