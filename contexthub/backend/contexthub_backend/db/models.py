@@ -149,6 +149,7 @@ class Push(Base):
     )
     failure_reason: Mapped[Optional[str]] = mapped_column(Text)
     idempotency_key: Mapped[Optional[str]] = mapped_column(Text)
+    pinned_at: Mapped[Optional[datetime]] = mapped_column(sa.DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=func.now(), nullable=False
     )

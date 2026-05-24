@@ -111,6 +111,14 @@ class TestSummaryModel:
         assert "content_tsv" in Base.metadata.tables["summaries"].c
 
 
+class TestPushPin:
+    def test_push_has_pinned_at_column(self):
+        col = Base.metadata.tables["pushes"].c["pinned_at"]
+        assert col.nullable is True
+        assert isinstance(col.type, sa.DateTime)
+        assert col.type.timezone is True
+
+
 class TestDefaultGeneration:
     def test_workspace_default_produces_uuid(self):
         ws = models.Workspace(

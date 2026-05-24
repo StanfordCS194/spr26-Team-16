@@ -79,6 +79,7 @@ export interface PushRow {
   status: PushStatus;
   failure_reason: string | null;
   idempotency_key: string | null;
+  pinned_at: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
