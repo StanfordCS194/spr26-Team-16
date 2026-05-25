@@ -59,6 +59,13 @@ In two words, we're building a meta-LLM. Its a Github-esque layer for enterprise
 | **Email (Romina)** | [rominaj@stanford.edu](mailto:rominaj@stanford.edu) |
 | **Course Slack** |  |
 
+---
+
+## Assignment links
+
+- [Measure for Success](https://github.com/StanfordCS194/spr26-Team-16/raw/main/wiki/ContextHub_OKRs_KPIs.docx)
+- [User Test Plan](https://github.com/StanfordCS194/spr26-Team-16/raw/main/wiki/ContextHub_User_Test_Plan.docx)
+- [Midpoint User Testing Writeup](https://github.com/StanfordCS194/spr26-Team-16/raw/main/wiki/ContextHub_Midpoint_User_Testing_Writeup.docx)
 
 ---
 
