@@ -1,0 +1,29 @@
+{
+  "name": "@contexthub/interchange-spec",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ContextHub interchange format (ch.v0.1): JSON Schema, generated TS types, markdown renderer.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schemas/conversation": "./schemas/ch.v0.1.conversation.json",
+    "./schemas/structured-block": "./schemas/ch.v0.1.structured-block.json"
+  },
+  "scripts": {
+    "codegen": "pnpm run codegen:ts && pnpm run codegen:py",
+    "codegen:ts": "node ./scripts/codegen.mjs",
+    "codegen:py": "cd ../../ && uv run python packages/interchange-spec/scripts/codegen_py.py",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "golden:write": "uv run --package contexthub-interchange ch-golden --write"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1",
+    "json-schema-to-typescript": "^15.0.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "@types/node": "^22.5.5"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [
+    { "title": "Pick Haiku 4.5", "rationale": "Cheap and fast enough for summarization" },
+    { "title": "Voyage voyage-3-large for embeddings", "rationale": "Strong retrieval quality at 1024d" }
+  ],
+  "artifacts": [],
+  "open_questions": [],
+  "assumptions": [],
+  "constraints": []
+}

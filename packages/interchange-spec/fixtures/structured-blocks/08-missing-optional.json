@@ -1,0 +1,14 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [
+    { "title": "Drop message_refs in first pass", "rationale": "Summarizer won't emit them reliably at v0" },
+    { "title": "Skip question context when unsure", "rationale": "Better to omit than to guess" }
+  ],
+  "artifacts": [],
+  "open_questions": [
+    { "question": "Is context always recoverable post-hoc?" },
+    { "question": "Do we validate context length?" }
+  ],
+  "assumptions": [],
+  "constraints": []
+}

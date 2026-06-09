@@ -1,0 +1,37 @@
+{
+  "spec_version": "ch.v0.1",
+  "source": {
+    "platform": "claude_ai",
+    "conversation_id": "conv_code_01",
+    "url": "https://claude.ai/chat/conv_code_01",
+    "model": "claude-haiku-4-5",
+    "captured_at": "2026-04-17T12:00:00Z"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "Draft the pushes migration." }
+      ],
+      "created_at": "2026-04-17T11:50:00Z"
+    },
+    {
+      "role": "assistant",
+      "content": [
+        { "type": "text", "text": "Here's a first pass:" },
+        {
+          "type": "code_block",
+          "language": "sql",
+          "body": "CREATE TABLE pushes (\n    id UUID PRIMARY KEY DEFAULT uuidv7(),\n    workspace_id UUID NOT NULL REFERENCES workspaces(id),\n    user_id UUID NOT NULL,\n    source_platform TEXT NOT NULL CHECK (source_platform IN ('claude_ai')),\n    status TEXT NOT NULL DEFAULT 'pending',\n    created_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);"
+        },
+        { "type": "text", "text": "And the Pydantic model:" },
+        {
+          "type": "code_block",
+          "language": "python",
+          "body": "class Push(BaseModel):\n    id: UUID\n    workspace_id: UUID\n    user_id: UUID\n    source_platform: Literal['claude_ai']\n    status: Literal['pending', 'processing', 'ready', 'failed']\n    created_at: datetime"
+        }
+      ],
+      "created_at": "2026-04-17T11:50:30Z"
+    }
+  ]
+}

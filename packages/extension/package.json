@@ -1,0 +1,25 @@
+{
+  "name": "@contexthub/extension",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ContextHub browser extension visual demo (Manifest V3).",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet' && exit 0"
+  },
+  "dependencies": {
+    "@contexthub/interchange-spec": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.280",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "ContextHub Demo Sidebar",
+  "version": "0.0.1",
+  "description": "Visual-only ContextHub extension demo for Claude.ai.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAn52lLcuwiqhwbANC+J5TKe9FkR0A2BdPkWVs7+z2CFHpc/uN9bMmkKTGF+ZXBbzSr/y4xYRJdUXAlVU6OkWCozl39ZUuQSpLN+VxOCE0w8oTr6Hel87ZLxZ62fC2IfFVTZFOLEmS3yiOEsQ7vMIk1K/riy0siL50jvbB7cIpDXJ8N7xr7gUOXrNmkjma0Qu8wOYxrnzG3WKWi+phZczXCdIB3eDsU5qDPBSjlckq4YP5x5hwjeTYlJtAuUIv3v/RbTqp4nNbVmH23gVZClfb+uqygjvPlSHzA+XK+anMTXExfcgAT3bM69eFg+W2poH0ij2iNEur3nxLNHucB0P7FQIDAQAB",
+  "permissions": ["storage", "tabs", "activeTab", "identity"],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://www.claude.ai/*",
+    "https://*.supabase.co/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*", "https://www.claude.ai/*"],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.html", "assets/*"],
+      "matches": ["https://claude.ai/*", "https://www.claude.ai/*"]
+    }
+  ],
+  "action": {
+    "default_title": "ContextHub Demo"
+  }
+}

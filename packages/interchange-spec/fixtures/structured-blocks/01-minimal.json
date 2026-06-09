@@ -1,0 +1,10 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [
+    { "title": "Use Postgres", "rationale": "Native pgvector support" }
+  ],
+  "artifacts": [],
+  "open_questions": [],
+  "assumptions": [],
+  "constraints": []
+}

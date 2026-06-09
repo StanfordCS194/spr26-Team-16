@@ -1,0 +1,24 @@
+{
+  "spec_version": "ch.v0.1",
+  "decisions": [
+    {
+      "title": "Name files with *asterisks* and _underscores_",
+      "rationale": "Markdown chars [#, *, _, [, ]] in user strings pass through verbatim"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "other",
+      "name": "weird [name] (with) parens",
+      "body": "# This looks like a heading but is inside a code fence\n> and this is not a blockquote"
+    }
+  ],
+  "open_questions": [
+    {
+      "question": "What about trailing spaces?   ",
+      "context": "Authored intent is preserved; renderer does not trim user strings"
+    }
+  ],
+  "assumptions": ["- bullet-looking assumption"],
+  "constraints": ["## heading-looking constraint"]
+}
