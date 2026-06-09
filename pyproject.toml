@@ -1,0 +1,28 @@
+[project]
+name = "contexthub-workspace"
+version = "0.0.0"
+description = "ContextHub monorepo — Python workspace root"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = ["packages/interchange-spec/python", "backend"]
+
+[tool.uv.sources]
+contexthub-interchange = { workspace = true }
+contexthub-backend = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.26",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+# backend/ has its own pytest config; exclude it from workspace-root runs
+# so the two tests/conftest.py modules don't collide.
+norecursedirs = ["backend", ".git", ".venv", "node_modules", "dist"]
+markers = [
+    "integration: marks tests requiring a live DB (deselect with -m 'not integration')",
+]
