@@ -1,3 +1,44 @@
-contexthub/backend/.contexthub_storage/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+.pnpm-store/
+*.tsbuildinfo
+
 # Next.js
 .next/
+out/
+next-env.d.ts
+
+# Local runtime storage (file-backed object store used in dev)
+.contexthub_storage/
+
+# Env / local — real secrets live here; only *.example / *_sample are committed
+.env
+.env.local
+.env.*.local
+.DS_Store
+
+# Extension signing key — must never be committed
+extension-key.pem
+*.pem
+
+# Editor
+.idea/
+.vscode/settings.json
+
+# Build / coverage
+coverage/
+.coverage
+htmlcov/
