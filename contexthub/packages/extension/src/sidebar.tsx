@@ -174,7 +174,7 @@ function SidebarApp() {
         apiBaseUrl,
         workspaceId,
         conversation: captured.conversation as ConversationV0,
-        idempotencyKey: `claude-${Date.now()}`
+        idempotencyKey: `${captured.conversation?.source?.platform || "chat"}-${Date.now()}`
       }
     });
 
@@ -254,7 +254,7 @@ function SidebarApp() {
         {!isConnected ? (
           <section className="signin-hero">
             <h2>Pick up where you left off</h2>
-            <p>Sign in to save Claude conversations and pull them back into new chats whenever you need.</p>
+            <p>Sign in to save your chat conversations and pull them back into new chats whenever you need.</p>
             <button
               className="signin-button"
               onClick={signInWithGoogle}
@@ -301,7 +301,7 @@ function SidebarApp() {
                 {chats.length === 0 ? (
                   <>
                     <h3>No saved conversations yet</h3>
-                    <p>Open a Claude chat and tap “Save current chat” to add it here.</p>
+                    <p>Open a supported chat and tap “Save current chat” to add it here.</p>
                   </>
                 ) : (
                   <>

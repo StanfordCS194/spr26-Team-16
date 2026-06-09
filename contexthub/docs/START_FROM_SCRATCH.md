@@ -43,6 +43,9 @@ uv sync --all-extras --dev
 
 ## 2) Reset and start infra (Postgres + Redis)
 
+Before this step, make sure Docker Desktop is running.
+If you see `Cannot connect to the Docker daemon`, start Docker first.
+
 ```bash
 cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
 docker compose down -v
@@ -144,7 +147,26 @@ echo "$JWT"
 
 ---
 
-## 5) Start services (4 terminals)
+## 5) Configure dashboard Supabase OAuth env
+
+The dashboard Sign-in button uses Supabase OAuth and needs frontend env vars.
+
+```bash
+cd /Users/hou/GitHub/spr26-Team-16/contexthub/packages/dashboard
+cp .env.local.example .env.local
+```
+
+Edit `packages/dashboard/.env.local` and set:
+- `NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>`
+
+In Supabase:
+- Enable Google provider under **Authentication -> Providers -> Google**.
+- Add your local callback URL(s) in **Authentication -> URL Configuration** as needed.
+
+---
+
+## 6) Start services (4 terminals)
 
 ## Terminal A - API
 
@@ -183,7 +205,7 @@ curl -sS http://localhost:8000/v1/me -H "Authorization: Bearer $JWT"
 
 ---
 
-## 6) Configure dashboard and mint extension token
+## 7) Configure dashboard and mint extension token
 
 In Dashboard:
 1. Go to **Overview** and set API config:
@@ -201,7 +223,7 @@ If token mint says `unrecognised token format`, your dashboard auth is not JWT. 
 
 ---
 
-## 7) Build and load extension
+## 8) Build and load extension
 
 Build:
 
@@ -226,7 +248,7 @@ In extension **Connection**:
 
 ---
 
-## 8) End-to-end check: push -> status -> search -> pull
+## 9) End-to-end check: push -> status -> search -> pull
 
 ### A) Push from extension
 
@@ -313,7 +335,7 @@ You can also run this flow from:
 
 ---
 
-## 9) Shutdown and reset
+## 10) Shutdown and reset
 
 Stop API/worker/dashboard with `Ctrl+C`.
 
@@ -328,5 +350,42 @@ Full reset (wipe DB volume):
 
 ```bash
 docker compose down -v
+```
+
+---
+
+## 11) Common setup failures (quick fixes)
+
+### `Cannot connect to the Docker daemon`
+
+Docker Desktop is not running. Start Docker, then rerun:
+
+```bash
+cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
+docker compose up -d
+```
+
+### `Can't locate revision identified by '...'` during `alembic upgrade head`
+
+Your local Postgres volume has stale Alembic history from an older branch/version.
+
+```bash
+cd /Users/hou/GitHub/spr26-Team-16/contexthub/backend
+docker compose down -v
+docker compose up -d
+psql "postgresql://postgres:postgres@localhost:5433/contexthub_dev" -f sql/auth_stub.sql
+uv run --package contexthub-backend python -m alembic upgrade head
+```
+
+### Dashboard Google sign-in opens `...supabase.co` and shows `DNS_PROBE_FINISHED_NXDOMAIN`
+
+`NEXT_PUBLIC_SUPABASE_URL` is wrong or stale in dashboard env.
+
+1. Update `packages/dashboard/.env.local` with the exact Supabase Project URL and anon key.
+2. Restart dashboard dev server:
+
+```bash
+cd /Users/hou/GitHub/spr26-Team-16/contexthub
+pnpm dashboard:dev
 ```
 

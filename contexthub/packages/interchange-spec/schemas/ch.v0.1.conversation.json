@@ -21,7 +21,7 @@
       "required": ["platform", "captured_at"],
       "additionalProperties": false,
       "properties": {
-        "platform": { "enum": ["claude_ai"] },
+        "platform": { "enum": ["claude_ai", "chatgpt", "gemini"] },
         "conversation_id": { "type": "string" },
         "url": { "type": "string", "format": "uri" },
         "model": { "type": "string" },

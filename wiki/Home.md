@@ -12,10 +12,8 @@
 ## Team logo
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StanfordCS194/spr26-Team-16/main/docs/assets/xarpa-logo.svg" alt="XARPA team logo: layered context blocks and wordmark" width="360"/>
+  <img src="https://raw.githubusercontent.com/StanfordCS194/spr26-Team-16/main/assets/XARPA_logo.png" alt="XARPA logo: stylized X with purple and cyan gradients and wordmark" width="360"/>
 </p>
-
-*Open-source style vector mark; hosted from this repository’s `docs/assets/` path so it renders on the Wiki after the default branch contains these files.*
 
 ---
 
@@ -24,6 +22,16 @@
 **“I Will Survive”** — Gloria Gaynor ([YouTube search](https://www.youtube.com/results?search_query=Gloria+Gaynor+I+Will+Survive+official)) · ([Wikipedia article](https://en.wikipedia.org/wiki/I_Will_Survive))
 
 
+
+---
+
+## Product logo
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/StanfordCS194/spr26-Team-16/main/assets/ContextHub_logo.png" alt="ContextHub logo: conversation cards flowing through a central hub" width="360"/>
+</p>
+
+**ContextHub** — version control for LLM-assisted knowledge work. Push finished conversations, search them semantically, pull context back into new ones.
 
 ---
 

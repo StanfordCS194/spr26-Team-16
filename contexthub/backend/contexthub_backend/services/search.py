@@ -101,13 +101,18 @@ async def hybrid_search(
     embedding_response = await embedder.embed([query_clean], input_type="query")
     query_vector = embedding_response.vectors[0]
 
+    # semantically similar
     vector_score_expr: ColumnElement[float] = (
         literal(1.0) - SummaryEmbedding.embedding.cosine_distance(query_vector)
     )
+
+    # lexically similar
     text_score_expr: ColumnElement[float] = func.ts_rank_cd(
         Summary.content_tsv,
         func.plainto_tsquery("english", query_clean),
     )
+
+    # combined score
     score_expr: ColumnElement[float] = (
         case((SummaryEmbedding.summary_id.is_(None), literal(0.0)), else_=vector_score_expr) * literal(0.65)
         + func.coalesce(text_score_expr, literal(0.0)) * literal(0.35)

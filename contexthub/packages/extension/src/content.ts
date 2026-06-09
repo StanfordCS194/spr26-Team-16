@@ -11,6 +11,10 @@ type CandidateMessage = {
   node: Element;
 };
 
+type SupportedPlatform = "claude_ai" | "chatgpt";
+
+const CHATGPT_HOSTS = new Set(["chatgpt.com", "www.chatgpt.com", "chat.openai.com"]);
+
 function removeExistingSidebar() {
   const existing = document.getElementById(sidebarHostId);
   if (existing) {
@@ -78,9 +82,24 @@ function ensureLauncher() {
   document.body.appendChild(launcher);
 }
 
-function extractConversationId(url: string): string | undefined {
-  const match = url.match(/\/chat\/([a-zA-Z0-9-]+)/);
-  return match?.[1];
+function detectPlatformFromHost(hostname: string): SupportedPlatform | null {
+  if (hostname === "claude.ai" || hostname === "www.claude.ai") {
+    return "claude_ai";
+  }
+  if (CHATGPT_HOSTS.has(hostname)) {
+    return "chatgpt";
+  }
+  return null;
+}
+
+function extractConversationId(url: string, platform: SupportedPlatform): string | undefined {
+  if (platform === "claude_ai") {
+    return url.match(/\/chat\/([a-zA-Z0-9-]+)/)?.[1];
+  }
+  return (
+    url.match(/\/c\/([a-zA-Z0-9-]+)/)?.[1] ||
+    url.match(/\/share\/([a-zA-Z0-9-]+)/)?.[1]
+  );
 }
 
 function extractCleanText(node: Element): string {
@@ -107,8 +126,7 @@ function extractCleanText(node: Element): string {
     .trim();
 }
 
-function collectCandidates(): CandidateMessage[] {
-  const root: ParentNode = document.querySelector("main") ?? document;
+function collectClaudeCandidates(root: ParentNode): CandidateMessage[] {
   const candidates: CandidateMessage[] = [];
   const seenNodes = new Set<Element>();
 
@@ -141,11 +159,46 @@ function collectCandidates(): CandidateMessage[] {
     candidates.push({ role: "assistant", node });
   }
 
+  return candidates;
+}
+
+function collectChatgptCandidates(root: ParentNode): CandidateMessage[] {
+  const candidates: CandidateMessage[] = [];
+  const seenNodes = new Set<Element>();
+
+  const turnNodes = Array.from(root.querySelectorAll("section[data-turn]"));
+  for (const turn of turnNodes) {
+    const roleAttr = turn.getAttribute("data-turn");
+    if (roleAttr !== "user" && roleAttr !== "assistant") continue;
+    const role = roleAttr as "user" | "assistant";
+    const primaryNode = turn.querySelector(`[data-message-author-role='${role}']`) || turn;
+    if (seenNodes.has(primaryNode)) continue;
+    seenNodes.add(primaryNode);
+    candidates.push({ role, node: primaryNode });
+  }
+
+  if (!candidates.length) {
+    const roleNodes = Array.from(root.querySelectorAll("[data-message-author-role='user'], [data-message-author-role='assistant']"));
+    for (const node of roleNodes) {
+      const roleAttr = node.getAttribute("data-message-author-role");
+      if (roleAttr !== "user" && roleAttr !== "assistant") continue;
+      if (seenNodes.has(node)) continue;
+      seenNodes.add(node);
+      candidates.push({ role: roleAttr, node });
+    }
+  }
+
+  return candidates;
+}
+
+function collectCandidates(platform: SupportedPlatform): CandidateMessage[] {
+  const root: ParentNode = document.querySelector("main") ?? document;
+  const candidates = platform === "chatgpt" ? collectChatgptCandidates(root) : collectClaudeCandidates(root);
   return candidates.filter(({ node }) => !node.closest(`#${sidebarHostId}`) && !node.closest(`#${launcherId}`));
 }
 
-function scrapeMessages(): ScrapedMessage[] {
-  const candidates = collectCandidates();
+function scrapeMessages(platform: SupportedPlatform): ScrapedMessage[] {
+  const candidates = collectCandidates(platform);
   const sorted = candidates.sort((a, b) => {
     const rel = a.node.compareDocumentPosition(b.node);
     if (rel & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
@@ -182,9 +235,17 @@ function scrapeMessages(): ScrapedMessage[] {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "ctxh:capture") {
+    const platform = detectPlatformFromHost(window.location.hostname);
+    if (!platform) {
+      sendResponse({
+        ok: false,
+        message: "Unsupported host. Open Claude or ChatGPT before capturing."
+      });
+      return;
+    }
     const pageUrl = window.location.href;
     const pageTitle = document.title;
-    const scrapedMessages = scrapeMessages();
+    const scrapedMessages = scrapeMessages(platform);
     if (!scrapedMessages.length) {
       sendResponse({
         ok: false,
@@ -195,8 +256,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const conversation = {
       spec_version: "ch.v0.1" as const,
       source: {
-        platform: "claude_ai" as const,
-        conversation_id: extractConversationId(pageUrl),
+        platform,
+        conversation_id: extractConversationId(pageUrl, platform),
         url: pageUrl,
         captured_at: new Date().toISOString()
       },
@@ -222,10 +283,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "ctxh:inject") {
     const text = String(message?.text || "");
-    const editable = (document.querySelector("div[contenteditable='true']") ||
-      document.querySelector("textarea")) as HTMLElement | null;
+    const platform = detectPlatformFromHost(window.location.hostname);
+    const editable = (
+      (platform === "chatgpt"
+        ? document.querySelector("form #prompt-textarea") ||
+          document.querySelector("textarea[data-testid='prompt-textarea']") ||
+          document.querySelector("textarea[placeholder*='Message']") ||
+          document.querySelector("#prompt-textarea")
+        : document.querySelector("div[contenteditable='true']") || document.querySelector("textarea")) as HTMLElement | null
+    );
     if (!editable) {
-      sendResponse({ ok: false, message: "Could not find Claude input element" });
+      sendResponse({ ok: false, message: "Could not find chat input element" });
       return;
     }
 
@@ -245,12 +313,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-function isClaudeHost() {
-  return window.location.hostname === "claude.ai" || window.location.hostname === "www.claude.ai";
+function isSupportedHost() {
+  return detectPlatformFromHost(window.location.hostname) !== null;
 }
 
 function start() {
-  if (!isClaudeHost()) {
+  if (!isSupportedHost()) {
     return;
   }
 

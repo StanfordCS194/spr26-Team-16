@@ -1,0 +1,102 @@
+<svg width="1200" height="680" viewBox="0 0 1200 680" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">ContextHub Product Flow</title>
+  <desc id="desc">A polished flow diagram showing Finished Chat to Push to Search to Pull, with supporting reasons for why the loop works.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="680" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7FBFF"/>
+      <stop offset="1" stop-color="#EFF5FF"/>
+    </linearGradient>
+
+    <linearGradient id="cardNeutral" x1="0" y1="150" x2="0" y2="282" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F7FAFE"/>
+    </linearGradient>
+    <linearGradient id="cardPush" x1="342" y1="150" x2="562" y2="282" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F2FFFA"/>
+    </linearGradient>
+    <linearGradient id="cardSearch" x1="624" y1="150" x2="844" y2="282" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F4FAFF"/>
+    </linearGradient>
+    <linearGradient id="cardPull" x1="906" y1="150" x2="1136" y2="282" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F7F5FF"/>
+    </linearGradient>
+
+    <linearGradient id="arrowGrad" x1="280" y1="216" x2="906" y2="216" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6D63C7"/>
+      <stop offset="0.5" stop-color="#4C9DFF"/>
+      <stop offset="1" stop-color="#7563E8"/>
+    </linearGradient>
+
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#294766" flood-opacity="0.12"/>
+    </filter>
+    <filter id="panelShadow" x="-10%" y="-15%" width="120%" height="130%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="20" flood-color="#1B3554" flood-opacity="0.08"/>
+    </filter>
+
+    <marker id="arrowHead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2L10 6L2 10Z" fill="#6070C9"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="680" rx="28" fill="url(#bg)"/>
+
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="52" y="70" fill="#334E68" font-size="21" font-weight="800" letter-spacing="0.4">CONTEXTHUB PRODUCT FLOW</text>
+    <text x="52" y="100" fill="#6B7C93" font-size="13" font-weight="500" letter-spacing="0.12">Capture prior context, make it searchable, then bring it back exactly when it matters.</text>
+
+    <!-- Flow cards -->
+    <g filter="url(#softShadow)">
+      <rect x="60" y="150" width="220" height="132" rx="16" fill="url(#cardNeutral)" stroke="#C4D3E8"/>
+      <rect x="342" y="150" width="220" height="132" rx="16" fill="url(#cardPush)" stroke="#63D2B0"/>
+      <rect x="624" y="150" width="220" height="132" rx="16" fill="url(#cardSearch)" stroke="#6CB6FF"/>
+      <rect x="906" y="150" width="230" height="132" rx="16" fill="url(#cardPull)" stroke="#A79BFF"/>
+    </g>
+
+    <!-- Arrows -->
+    <g stroke="url(#arrowGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="284" y1="216" x2="337" y2="216" marker-end="url(#arrowHead)"/>
+      <line x1="566" y1="216" x2="619" y2="216" marker-end="url(#arrowHead)"/>
+      <line x1="848" y1="216" x2="901" y2="216" marker-end="url(#arrowHead)"/>
+    </g>
+
+    <!-- Card text -->
+    <g text-anchor="middle">
+      <text x="170" y="205" fill="#324A63" font-size="25" font-weight="800">Finished Chat</text>
+      <text x="170" y="240" fill="#55708E" font-size="16" font-weight="500">Claude conversation</text>
+
+      <text x="452" y="212" fill="#05725D" font-size="30" font-weight="900" letter-spacing="0.6">PUSH</text>
+      <text x="452" y="240" fill="#34495E" font-size="16" font-weight="500">Capture and summarize</text>
+
+      <text x="734" y="212" fill="#07578F" font-size="30" font-weight="900" letter-spacing="0.6">SEARCH</text>
+      <text x="734" y="240" fill="#34495E" font-size="16" font-weight="500">Find prior decisions</text>
+
+      <text x="1021" y="212" fill="#5147A9" font-size="30" font-weight="900" letter-spacing="0.6">PULL</text>
+      <text x="1021" y="240" fill="#34495E" font-size="16" font-weight="500">Inject context into new chat</text>
+    </g>
+
+    <!-- Bottom explanation panel -->
+    <g filter="url(#panelShadow)">
+      <rect x="60" y="370" width="1076" height="230" rx="16" fill="#FFFFFF" stroke="#D5E0EF"/>
+    </g>
+
+    <text x="92" y="420" fill="#233B53" font-size="25" font-weight="800">Why this loop works</text>
+
+    <g font-size="18" font-weight="500" fill="#24476B">
+      <circle cx="108" cy="468" r="8" fill="#42B891"/>
+      <text x="132" y="475">Structured summaries preserve decisions, artifacts, and open questions.</text>
+
+      <circle cx="108" cy="518" r="8" fill="#4C9DFF"/>
+      <text x="132" y="525">Hybrid search makes prior work discoverable when you need it.</text>
+
+      <circle cx="108" cy="568" r="8" fill="#7367F0"/>
+      <text x="132" y="575">Pull returns a grounded context payload with provenance for fast reuse.</text>
+    </g>
+
+    <!-- Subtle decorative loop line -->
+    <path d="M1030 303 C1030 335 1006 348 966 348 L229 348 C181 348 151 331 151 303" stroke="#B9C9E2" stroke-width="2" stroke-dasharray="7 8" stroke-linecap="round" opacity="0.65"/>
+  </g>
+</svg>

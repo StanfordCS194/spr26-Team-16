@@ -706,16 +706,9 @@ function PreLoginPage({
         <div className="hero-explainer" aria-label="ContextHub push search pull overview">
           <div className="hero-visual">
             <img
-              src="/images/contexthub-hero.png"
+              src="/images/contexthub-hero.svg"
               alt="ContextHub product flow showing Push, Search, and Pull stages"
             />
-          </div>
-          <div className="mini-flow" aria-label="Push search pull flow">
-            <span>Finished chat</span>
-            <strong>Push</strong>
-            <strong>Search</strong>
-            <strong>Pull</strong>
-            <span>New chat with context</span>
           </div>
         </div>
       </section>

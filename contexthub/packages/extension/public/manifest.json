@@ -8,6 +8,9 @@
   "host_permissions": [
     "https://claude.ai/*",
     "https://www.claude.ai/*",
+    "https://chatgpt.com/*",
+    "https://www.chatgpt.com/*",
+    "https://chat.openai.com/*",
     "https://*.supabase.co/*",
     "http://localhost:*/*",
     "http://127.0.0.1:*/*"
@@ -18,7 +21,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://claude.ai/*", "https://www.claude.ai/*"],
+      "matches": [
+        "https://claude.ai/*",
+        "https://www.claude.ai/*",
+        "https://chatgpt.com/*",
+        "https://www.chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
       "js": ["assets/content.js"],
       "run_at": "document_idle"
     }
@@ -26,7 +35,13 @@
   "web_accessible_resources": [
     {
       "resources": ["sidebar.html", "assets/*"],
-      "matches": ["https://claude.ai/*", "https://www.claude.ai/*"]
+      "matches": [
+        "https://claude.ai/*",
+        "https://www.claude.ai/*",
+        "https://chatgpt.com/*",
+        "https://www.chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ]
     }
   ],
   "action": {
