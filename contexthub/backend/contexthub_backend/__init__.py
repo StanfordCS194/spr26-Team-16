@@ -1,2 +1,0 @@
-"""ContextHub backend package."""
-
