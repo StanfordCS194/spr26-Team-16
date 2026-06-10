@@ -18,7 +18,7 @@ export type SummaryLayer =
   | "details"
   | "raw_transcript";
 export type RelationType = "continuation" | "reference" | "supersession";
-export type TargetPlatform = "claude_ai";
+export type TargetPlatform = "claude_ai" | "chatgpt" | "gemini";
 export type PullOrigin = "extension" | "dashboard";
 export type PullResolution =
   | "title"

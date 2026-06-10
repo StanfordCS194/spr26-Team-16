@@ -22,11 +22,11 @@ from dataclasses import dataclass
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends, Header
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from contexthub_backend.api.errors import AuthError, ForbiddenError
 from contexthub_backend.auth.jwt import verify_supabase_jwt
+from contexthub_backend.auth.rls import apply_rls_context
 from contexthub_backend.auth.tokens import ALL_SCOPES, touch_token, verify_api_token
 from contexthub_backend.config import settings
 from contexthub_backend.db.base import make_async_engine
@@ -128,17 +128,10 @@ async def get_rls_session(
     On Supabase, switch to the platform's built-in `authenticated` role and
     set `request.jwt.claim.sub` so Supabase's auth.uid() resolves to our user.
     Also set `app.current_user_id` for any policies/triggers in our migrations
-    that read it directly.
+    that read it directly. Delegates to `apply_rls_context` so the request path
+    and worker jobs share one implementation.
     """
-    await session.execute(text("SET LOCAL ROLE authenticated"))
-    await session.execute(
-        text("SELECT set_config('request.jwt.claim.sub', :uid, true)"),
-        {"uid": str(user.user_id)},
-    )
-    await session.execute(
-        text("SELECT set_config('app.current_user_id', :uid, true)"),
-        {"uid": str(user.user_id)},
-    )
+    await apply_rls_context(session, user_id=user.user_id)
     return session
 
 

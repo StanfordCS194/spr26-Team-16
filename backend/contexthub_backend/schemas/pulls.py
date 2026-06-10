@@ -12,7 +12,7 @@ class PullSelection(BaseModel):
 
 class PullRequest(BaseModel):
     selections: list[PullSelection] = Field(min_length=1, max_length=20)
-    target_platform: str = Field(pattern="^(claude_ai)$")
+    target_platform: str = Field(pattern="^(claude_ai|chatgpt|gemini)$")
     origin: str = Field(default="dashboard", pattern="^(dashboard|extension)$")
 
 

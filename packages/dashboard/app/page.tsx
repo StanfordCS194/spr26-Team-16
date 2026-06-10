@@ -157,6 +157,9 @@ export default function HomePage() {
   const [showTranscript, setShowTranscript] = useState(false);
 
   const [copyState, setCopyState] = useState<"idle" | "copying" | "copied" | "failed">("idle");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [multiCopyState, setMultiCopyState] = useState<"idle" | "copying" | "copied" | "failed">("idle");
+  const [multiCopyTokens, setMultiCopyTokens] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -279,6 +282,52 @@ export default function HomePage() {
     }
   }
 
+  function toggleSelected(id: string) {
+    setSelectedIds((cur) => {
+      if (cur.includes(id)) return cur.filter((x) => x !== id);
+      if (cur.length >= 20) {
+        setError("You can pull at most 20 conversations at once.");
+        return cur;
+      }
+      return [...cur, id];
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds([]);
+    setMultiCopyState("idle");
+    setMultiCopyTokens(null);
+  }
+
+  async function handleCopySelected() {
+    if (selectedIds.length === 0) return;
+    setMultiCopyState("copying");
+    setMultiCopyTokens(null);
+    const res = await apiFetch<PullResponse>("/v1/pulls", {
+      method: "POST",
+      body: JSON.stringify({
+        selections: selectedIds.map((id) => ({ push_id: id, include_transcript: true })),
+        target_platform: "claude_ai",
+        origin: "dashboard"
+      })
+    });
+    if (!res.ok) {
+      setMultiCopyState("failed");
+      setError(res.message);
+      setTimeout(() => setMultiCopyState("idle"), 2000);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(res.data.payload_markdown);
+      setMultiCopyTokens(res.data.token_estimate);
+      setMultiCopyState("copied");
+      setTimeout(() => setMultiCopyState("idle"), 2500);
+    } catch {
+      setMultiCopyState("failed");
+      setTimeout(() => setMultiCopyState("idle"), 2000);
+    }
+  }
+
   async function handleDelete(id: string) {
     setOpenMenuId(null);
     if (!confirm("Delete this conversation? This can't be undone.")) return;
@@ -290,6 +339,7 @@ export default function HomePage() {
       return;
     }
     setChats((cur) => cur.filter((c) => c.id !== id));
+    setSelectedIds((cur) => cur.filter((x) => x !== id));
     if (activeId === id) {
       setActiveId(null);
       setDetail(null);
@@ -393,7 +443,7 @@ export default function HomePage() {
     <div className="page">
       <div className="page-heading">
         <h1>Your conversations</h1>
-        <p>Search and reuse Claude conversations you've saved from the extension.</p>
+        <p>Search and reuse chatbot conversations you've saved from the extension.</p>
       </div>
 
       <div className="hero-search">
@@ -414,6 +464,42 @@ export default function HomePage() {
 
       {error ? <p className="toast toast-error">{error}</p> : null}
 
+      {selectedIds.length > 0 ? (
+        <div className="selection-bar">
+          <div className="selection-info">
+            <span className="selection-count">
+              {selectedIds.length} conversation{selectedIds.length === 1 ? "" : "s"} selected
+            </span>
+            <span className="selection-hint">
+              {multiCopyState === "copied" && multiCopyTokens != null
+                ? `Copied to clipboard — ~${multiCopyTokens.toLocaleString()} tokens`
+                : "Pull the selected conversations together into one context"}
+            </span>
+          </div>
+          <div className="selection-actions">
+            <button className="btn btn-secondary" onClick={clearSelection} type="button">
+              Clear
+            </button>
+            <button
+              className={`btn copy-btn ${multiCopyState !== "idle" ? "copy-" + multiCopyState : ""}`}
+              onClick={handleCopySelected}
+              disabled={multiCopyState === "copying"}
+              type="button"
+            >
+              {multiCopyState === "copying" ? (
+                <><span className="spinner spinner-on-blue" /> Building…</>
+              ) : multiCopyState === "copied" ? (
+                <><CheckIcon /> Copied</>
+              ) : multiCopyState === "failed" ? (
+                <>Copy failed — try again</>
+              ) : (
+                <><CopyIcon /> Copy combined context</>
+              )}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="workspace">
         <aside className="list-panel">
           <div className="list-panel-header">
@@ -432,7 +518,7 @@ export default function HomePage() {
             </button>
           </div>
 
-          <div className="list-scroll">
+          <div className={`list-scroll${selectedIds.length > 0 ? " select-active" : ""}`}>
             {chatsLoading ? (
               <div className="loading">
                 <span className="spinner" />
@@ -456,11 +542,20 @@ export default function HomePage() {
               filtered.map((c) => {
                 const isActive = activeId === c.id;
                 const isMenuOpen = openMenuId === c.id;
+                const isSelected = selectedIds.includes(c.id);
                 return (
                   <div
                     key={c.id}
-                    className={`list-item-wrap${isActive ? " is-active" : ""}`}
+                    className={`list-item-wrap${isActive ? " is-active" : ""}${isSelected ? " is-selected" : ""}`}
                   >
+                    <label className="list-item-select" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelected(c.id)}
+                        aria-label="Select conversation for combined pull"
+                      />
+                    </label>
                     <button
                       className={`list-item${isActive ? " is-active" : ""}`}
                       onClick={() => setActiveId(c.id)}
