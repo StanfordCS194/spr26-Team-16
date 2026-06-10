@@ -158,6 +158,7 @@ export default function HomePage() {
 
   const [copyState, setCopyState] = useState<"idle" | "copying" | "copied" | "failed">("idle");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [transcriptSelections, setTranscriptSelections] = useState<Record<string, boolean>>({});
   const [multiCopyState, setMultiCopyState] = useState<"idle" | "copying" | "copied" | "failed">("idle");
   const [multiCopyTokens, setMultiCopyTokens] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -283,18 +284,29 @@ export default function HomePage() {
   }
 
   function toggleSelected(id: string) {
-    setSelectedIds((cur) => {
-      if (cur.includes(id)) return cur.filter((x) => x !== id);
-      if (cur.length >= 20) {
-        setError("You can pull at most 20 conversations at once.");
-        return cur;
-      }
-      return [...cur, id];
-    });
+    if (selectedIds.includes(id)) {
+      setSelectedIds((cur) => cur.filter((x) => x !== id));
+      setTranscriptSelections((cur) => {
+        const next = { ...cur };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    if (selectedIds.length >= 20) {
+      setError("You can pull at most 20 conversations at once.");
+      return;
+    }
+    setSelectedIds((cur) => [...cur, id]);
+  }
+
+  function toggleTranscript(id: string) {
+    setTranscriptSelections((cur) => ({ ...cur, [id]: !cur[id] }));
   }
 
   function clearSelection() {
     setSelectedIds([]);
+    setTranscriptSelections({});
     setMultiCopyState("idle");
     setMultiCopyTokens(null);
   }
@@ -306,7 +318,10 @@ export default function HomePage() {
     const res = await apiFetch<PullResponse>("/v1/pulls", {
       method: "POST",
       body: JSON.stringify({
-        selections: selectedIds.map((id) => ({ push_id: id, include_transcript: true })),
+        selections: selectedIds.map((id) => ({
+          push_id: id,
+          include_transcript: Boolean(transcriptSelections[id])
+        })),
         target_platform: "claude_ai",
         origin: "dashboard"
       })
@@ -340,6 +355,11 @@ export default function HomePage() {
     }
     setChats((cur) => cur.filter((c) => c.id !== id));
     setSelectedIds((cur) => cur.filter((x) => x !== id));
+    setTranscriptSelections((cur) => {
+      const next = { ...cur };
+      delete next[id];
+      return next;
+    });
     if (activeId === id) {
       setActiveId(null);
       setDetail(null);
@@ -611,6 +631,16 @@ export default function HomePage() {
                         </div>
                       ) : null}
                     </div>
+                    {isSelected ? (
+                      <label className="list-item-transcript" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(transcriptSelections[c.id])}
+                          onChange={() => toggleTranscript(c.id)}
+                        />
+                        Include full transcript
+                      </label>
+                    ) : null}
                   </div>
                 );
               })
