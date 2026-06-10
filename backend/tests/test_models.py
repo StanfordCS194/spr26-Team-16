@@ -3,7 +3,6 @@
 import uuid
 
 import pytest
-import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 
 from contexthub_backend.db.base import Base

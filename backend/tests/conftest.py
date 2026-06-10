@@ -19,7 +19,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 BACKEND_DIR = Path(__file__).parent.parent

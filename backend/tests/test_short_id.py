@@ -3,7 +3,6 @@
 import re
 import uuid
 
-import pytest
 
 from contexthub_backend.db.short_id import (
     _encode,

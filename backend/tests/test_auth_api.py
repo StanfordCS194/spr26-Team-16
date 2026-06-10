@@ -25,11 +25,11 @@ import psycopg
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from contexthub_backend.auth import dependencies as auth_deps
 from contexthub_backend.auth.jwt import make_test_jwt
-from contexthub_backend.auth.tokens import generate_raw_token, hash_token, mint_token
+from contexthub_backend.auth.tokens import mint_token
 from contexthub_backend.db.base import make_async_engine
 from contexthub_backend.db.models import ExtensionPairingCode
 from contexthub_backend.db.short_id import uuid7

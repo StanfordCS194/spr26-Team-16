@@ -126,7 +126,6 @@ class TestAsymmetric:
     def test_asymmetric_signature_mismatch_rejected(self, monkeypatch, ec_keypair):
         # Sign with key A, verify against key B — JWKS stub returns key B.
         rogue, _ = ec_keypair
-        _, victim_pub = (ec.generate_private_key(ec.SECP256R1()), None)
         # Generate a separate keypair for the JWKS stub.
         other = ec.generate_private_key(ec.SECP256R1())
         _patch_jwks_with(monkeypatch, other.public_key())

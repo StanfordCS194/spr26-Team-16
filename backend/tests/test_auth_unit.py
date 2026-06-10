@@ -63,7 +63,6 @@ class TestVerifySupabaseJwt:
             verify_supabase_jwt(token, SECRET)
 
     def test_wrong_algorithm_rejected(self):
-        uid = uuid.uuid4()
         # RS256 token presented to HS256-only verifier
         with pytest.raises(AuthError):
             verify_supabase_jwt("header.payload.sig", SECRET)
