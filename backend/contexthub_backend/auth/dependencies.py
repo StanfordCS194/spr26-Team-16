@@ -18,7 +18,7 @@ the superuser connection can see all api_tokens rows to identify the caller.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends, Header

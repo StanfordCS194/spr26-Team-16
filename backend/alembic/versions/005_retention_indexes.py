@@ -13,7 +13,7 @@ The pushes(status, created_at) index is partial on status='failed' to keep it
 small (failed pushes are a tiny minority of the table).
 
 Revision ID: 005
-Revises: 004
+Revises: 004_fix_rls_with_check
 Create Date: 2026-05-05
 """
 
@@ -21,7 +21,7 @@ from alembic import op
 
 
 revision = "005"
-down_revision = "004"
+down_revision = "004_fix_rls_with_check"
 branch_labels = None
 depends_on = None
 

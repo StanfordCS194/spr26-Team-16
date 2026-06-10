@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
-from sqlalchemy import and_, delete, or_, select, update
+from sqlalchemy import and_, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contexthub_backend.config import settings
@@ -40,10 +40,6 @@ from contexthub_backend.db.models import (
     Profile,
     Pull,
     Push,
-    PushRelationship,
-    PushTag,
-    Summary,
-    SummaryEmbedding,
     SummaryFeedback,
     Tag,
     Transcript,
