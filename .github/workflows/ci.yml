@@ -4,12 +4,13 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'contexthub/**'
+      - 'backend/**'
+      - 'packages/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/**'
-
-defaults:
-  run:
-    working-directory: contexthub
 
 jobs:
   python:
@@ -29,7 +30,7 @@ jobs:
           tests/test_short_id.py tests/test_models.py tests/test_auth_unit.py
           tests/test_providers_unit.py tests/test_providers_contract.py
           -m "not integration" -v
-        working-directory: contexthub/backend
+        working-directory: backend
 
   typescript:
     name: typescript · typecheck + test
@@ -43,7 +44,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-          cache-dependency-path: contexthub/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
       - run: pnpm -r test -- --run
@@ -83,10 +84,10 @@ jobs:
           EOF
       - name: alembic upgrade head
         run: uv run --package contexthub-backend python -m alembic upgrade head
-        working-directory: contexthub/backend
+        working-directory: backend
       - name: load fixture dataset
         run: uv run --package contexthub-backend python scripts/gen_fixtures.py
-        working-directory: contexthub/backend
+        working-directory: backend
       - name: run migration + rls + auth api tests
         run: >
           uv run --package contexthub-backend pytest
@@ -94,10 +95,10 @@ jobs:
           -m integration -v
         env:
           SUPABASE_JWT_SECRET: test-secret-not-for-production-at-least-32-bytes
-        working-directory: contexthub/backend
+        working-directory: backend
       - name: alembic downgrade base
         run: uv run --package contexthub-backend python -m alembic downgrade base
-        working-directory: contexthub/backend
+        working-directory: backend
 
   codegen-drift:
     name: codegen drift check
@@ -112,7 +113,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-          cache-dependency-path: contexthub/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: uv tool install datamodel-code-generator
       - run: pnpm run codegen
