@@ -52,6 +52,11 @@ def db_engine(db_url: str):
     # 1. Apply auth stub (idempotent)
     with psycopg.connect(_psycopg_url(), autocommit=True) as conn:
         conn.execute(AUTH_STUB_SQL.read_text())
+        # auth.users lives outside the migrated schema and survives
+        # `alembic downgrade base`. Clear it so fixtures that insert users
+        # with fixed emails (ON CONFLICT DO NOTHING) don't silently bind to
+        # stale ids from a previous local run. CI starts fresh either way.
+        conn.execute("DELETE FROM auth.users")
 
     # 2. Migrate up
     env = {**os.environ, "DATABASE_URL": db_url}

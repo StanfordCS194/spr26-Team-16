@@ -58,4 +58,6 @@ class PushDetailResponse(BaseModel):
     transcript_size_bytes: int | None
     raw_transcript: str | None
     summaries: list[PushDetailSummaryLayer]
+    is_owner: bool = True
+    shared_by: str | None = None
 

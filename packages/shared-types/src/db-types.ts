@@ -133,6 +133,16 @@ export interface PushRelationshipRow {
   created_at: string;
 }
 
+export interface PushShareRow {
+  id: string;
+  push_id: string;
+  owner_user_id: string;
+  recipient_user_id: string;
+  owner_email: string;
+  recipient_email: string;
+  created_at: string;
+}
+
 export interface SummaryFeedbackRow {
   id: string;
   summary_id: string;
