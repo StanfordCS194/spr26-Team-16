@@ -13,7 +13,7 @@ export interface ConversationV0 {
   metadata?: Metadata;
 }
 export interface Source {
-  platform: "claude_ai";
+  platform: "claude_ai" | "chatgpt" | "gemini";
   conversation_id?: string;
   url?: string;
   model?: string;

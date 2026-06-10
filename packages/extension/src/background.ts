@@ -8,6 +8,30 @@ chrome.runtime.onInstalled.addListener(() => {
   console.info("[ContextHub] extension installed");
 });
 
+// Map the active tab's URL to a ContextHub target platform so pulled context is
+// framed for the chat product it is being injected into. Defaults to claude_ai
+// for backwards compatibility when the host is unknown.
+function detectPlatformFromUrl(url: string | undefined): "claude_ai" | "chatgpt" | "gemini" {
+  let host = "";
+  try {
+    host = new URL(url || "").hostname;
+  } catch {
+    host = "";
+  }
+  if (
+    host === "chatgpt.com" ||
+    host === "www.chatgpt.com" ||
+    host === "chat.openai.com" ||
+    host === "www.chat.openai.com"
+  ) {
+    return "chatgpt";
+  }
+  if (host === "gemini.google.com") {
+    return "gemini";
+  }
+  return "claude_ai";
+}
+
 async function apiRequest(
   apiBaseUrl: string,
   authToken: string,
@@ -340,11 +364,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           sendResponse({ ok: false, message: "Missing apiBaseUrl/selections" });
           return;
         }
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const targetPlatform = detectPlatformFromUrl(tab?.url);
         const res = await apiRequest(apiBaseUrl, accessToken, "/v1/pulls", {
           method: "POST",
           body: JSON.stringify({
             selections,
-            target_platform: "claude_ai",
+            target_platform: targetPlatform,
             origin: "extension"
           })
         });

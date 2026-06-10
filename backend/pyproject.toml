@@ -18,6 +18,7 @@ dependencies = [
     "redis>=5.0",
     "supabase>=2.6",
     "contexthub-interchange",
+    "uvicorn[standard]>=0.30",
 ]
 
 [dependency-groups]

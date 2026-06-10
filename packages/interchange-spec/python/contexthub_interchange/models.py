@@ -11,7 +11,7 @@ class Source(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    platform: Literal['claude_ai']
+    platform: Literal['claude_ai', 'chatgpt', 'gemini']
     conversation_id: str | None = None
     url: AnyUrl | None = None
     model: str | None = None

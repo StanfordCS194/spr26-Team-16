@@ -36,7 +36,7 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _platform_framing(target_platform: str) -> str:
-    if target_platform == "claude_ai":
+    if target_platform in ("claude_ai", "chatgpt", "gemini"):
         return (
             "Use the following retrieved context from prior conversations. "
             "Treat it as memory and verify assumptions before acting on it."
