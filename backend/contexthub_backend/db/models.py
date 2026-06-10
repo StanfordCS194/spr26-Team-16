@@ -475,7 +475,8 @@ class Pull(Base):
         nullable=False,
     )
     target_platform: Mapped[str] = mapped_column(
-        sa.Enum("claude_ai", name="target_platform"), nullable=False
+        sa.Enum("claude_ai", "chatgpt", "gemini", name="target_platform"),
+        nullable=False,
     )
     origin: Mapped[str] = mapped_column(
         sa.Enum("extension", "dashboard", name="pull_origin"), nullable=False
