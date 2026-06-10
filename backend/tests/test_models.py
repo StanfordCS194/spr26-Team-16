@@ -10,6 +10,7 @@ from contexthub_backend.db import models
 
 
 EXPECTED_TABLES = {
+    "auth.users",  # external Supabase table registered as a metadata stub
     "profiles",
     "api_tokens",
     "workspaces",
@@ -24,6 +25,7 @@ EXPECTED_TABLES = {
     "summary_feedback",
     "pulls",
     "audit_log",
+    "extension_pairing_codes",
 }
 
 
