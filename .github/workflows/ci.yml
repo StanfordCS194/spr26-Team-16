@@ -21,7 +21,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-      - run: uv sync --all-extras --dev
+      - run: uv sync --all-extras --dev --all-packages
       - run: uv run ruff check .
       - run: uv run --package contexthub-interchange pytest
       - name: backend unit tests (no DB)
@@ -38,8 +38,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -73,7 +71,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-      - run: uv sync --all-extras --dev
+      - run: uv sync --all-extras --dev --all-packages
       - name: apply auth stub
         run: |
           uv run python - << 'EOF'
@@ -107,8 +105,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
