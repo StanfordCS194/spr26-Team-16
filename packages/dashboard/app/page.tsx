@@ -48,6 +48,39 @@ type PushDetailResponse = {
   updated_at: string;
   raw_transcript: string | null;
   summaries: PushDetailSummaryLayer[];
+  is_owner: boolean;
+  shared_by: string | null;
+};
+
+type ShareRow = {
+  id: string;
+  push_id: string;
+  owner_email: string;
+  recipient_email: string;
+  created_at: string;
+};
+
+type ShareListResponse = {
+  items: ShareRow[];
+};
+
+type SharedWithMeItem = {
+  share_id: string;
+  push_id: string;
+  conversation_title: string | null;
+  status: string;
+  source_platform: string;
+  owner_email: string;
+  shared_at: string;
+  created_at: string;
+  updated_at: string;
+  title: string | null;
+  summary: string | null;
+  details: SummaryDetailsRaw | null;
+};
+
+type SharedWithMeResponse = {
+  items: SharedWithMeItem[];
 };
 
 type PullResponse = {
@@ -167,6 +200,18 @@ export default function HomePage() {
   const [renameSaving, setRenameSaving] = useState(false);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Share state
+  const [sharedChats, setSharedChats] = useState<SharedWithMeItem[]>([]);
+  const [shareTarget, setShareTarget] = useState<{ id: string; title: string } | null>(null);
+  const [shareEmail, setShareEmail] = useState("");
+  const [shareSubmitting, setShareSubmitting] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [shareList, setShareList] = useState<ShareRow[]>([]);
+  const [shareListLoading, setShareListLoading] = useState(false);
+  const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
+  const shareEmailRef = useRef<HTMLInputElement | null>(null);
+
   // ---- auth bootstrap
   useEffect(() => {
     if (!supabaseEnabled) {
@@ -197,9 +242,19 @@ export default function HomePage() {
     setChats(res.data.items || []);
   }, []);
 
+  const loadShared = useCallback(async () => {
+    const res = await apiFetch<SharedWithMeResponse>("/v1/shares/received?limit=50");
+    // Older backends don't have this endpoint; treat failures as "no shares"
+    // so the dashboard keeps working.
+    setSharedChats(res.ok ? res.data.items || [] : []);
+  }, []);
+
   useEffect(() => {
-    if (signedIn) loadChats("initial");
-  }, [signedIn, loadChats]);
+    if (signedIn) {
+      loadChats("initial");
+      loadShared();
+    }
+  }, [signedIn, loadChats, loadShared]);
 
   // ---- detail load
   useEffect(() => {
@@ -233,6 +288,16 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [openMenuId]);
 
+  // ---- close share modal on Escape
+  useEffect(() => {
+    if (!shareTarget) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setShareTarget(null);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [shareTarget]);
+
   const filtered = useMemo(() => {
     if (!filter.trim()) return chats;
     const q = filter.toLowerCase();
@@ -242,6 +307,16 @@ export default function HomePage() {
       return title.includes(q) || summary.includes(q);
     });
   }, [chats, filter]);
+
+  const filteredShared = useMemo(() => {
+    if (!filter.trim()) return sharedChats;
+    const q = filter.toLowerCase();
+    return sharedChats.filter((c) => {
+      const title = (c.title || c.conversation_title || "").toLowerCase();
+      const summary = (c.summary || "").toLowerCase();
+      return title.includes(q) || summary.includes(q) || c.owner_email.toLowerCase().includes(q);
+    });
+  }, [sharedChats, filter]);
 
   async function handleSignIn() {
     setAuthError(null);
@@ -258,7 +333,9 @@ export default function HomePage() {
     const res = await apiFetch<PullResponse>("/v1/pulls", {
       method: "POST",
       body: JSON.stringify({
-        selections: [{ push_id: activeId, include_transcript: true }],
+        // Shared chats grant summary access only — never request the
+        // transcript for a chat the viewer doesn't own.
+        selections: [{ push_id: activeId, include_transcript: detail?.is_owner ?? true }],
         target_platform: "claude_ai",
         origin: "dashboard"
       })
@@ -347,6 +424,83 @@ export default function HomePage() {
     cancelRename();
   }
 
+  // ---- sharing
+
+  async function openShareModal(id: string, title: string) {
+    setOpenMenuId(null);
+    setShareTarget({ id, title });
+    setShareEmail("");
+    setShareError(null);
+    setShareNotice(null);
+    setShareList([]);
+    setShareListLoading(true);
+    setTimeout(() => shareEmailRef.current?.focus(), 0);
+    const res = await apiFetch<ShareListResponse>(`/v1/pushes/${id}/shares`);
+    setShareListLoading(false);
+    if (res.ok) setShareList(res.data.items || []);
+    else setShareError(res.message);
+  }
+
+  function closeShareModal() {
+    setShareTarget(null);
+    setShareEmail("");
+    setShareError(null);
+    setShareNotice(null);
+  }
+
+  async function handleShareSubmit() {
+    if (!shareTarget) return;
+    const email = shareEmail.trim();
+    if (!email) return;
+    setShareSubmitting(true);
+    setShareError(null);
+    setShareNotice(null);
+    const res = await apiFetch<ShareRow>(`/v1/pushes/${shareTarget.id}/shares`, {
+      method: "POST",
+      body: JSON.stringify({ recipient_email: email })
+    });
+    setShareSubmitting(false);
+    if (!res.ok) {
+      setShareError(res.message);
+      return;
+    }
+    setShareList((cur) => [res.data, ...cur]);
+    setShareEmail("");
+    setShareNotice(`Shared with ${res.data.recipient_email}. It now appears on their dashboard.`);
+  }
+
+  async function handleRevokeShare(share: ShareRow) {
+    setRevokingShareId(share.id);
+    setShareError(null);
+    const res = await apiFetch<null>(`/v1/pushes/${share.push_id}/shares/${share.id}`, {
+      method: "DELETE"
+    });
+    setRevokingShareId(null);
+    if (!res.ok) {
+      setShareError(res.message);
+      return;
+    }
+    setShareList((cur) => cur.filter((s) => s.id !== share.id));
+    setShareNotice(null);
+  }
+
+  async function handleLeaveShare(item: SharedWithMeItem) {
+    setOpenMenuId(null);
+    if (!confirm("Remove this shared conversation from your dashboard?")) return;
+    const res = await apiFetch<null>(`/v1/pushes/${item.push_id}/shares/${item.share_id}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) {
+      setError(res.message);
+      return;
+    }
+    setSharedChats((cur) => cur.filter((s) => s.share_id !== item.share_id));
+    if (activeId === item.push_id) {
+      setActiveId(null);
+      setDetail(null);
+    }
+  }
+
   // ---- render
 
   if (authLoading) {
@@ -422,7 +576,10 @@ export default function HomePage() {
             </span>
             <button
               className="icon-btn"
-              onClick={() => loadChats("refresh")}
+              onClick={() => {
+                loadChats("refresh");
+                loadShared();
+              }}
               disabled={chatsRefreshing || chatsLoading}
               type="button"
               aria-label="Refresh"
@@ -506,6 +663,19 @@ export default function HomePage() {
                             <PencilIcon /> Rename
                           </button>
                           <button
+                            className="kebab-item"
+                            onClick={() =>
+                              openShareModal(
+                                c.id,
+                                c.title || c.conversation_title || "Untitled conversation"
+                              )
+                            }
+                            type="button"
+                            role="menuitem"
+                          >
+                            <ShareIcon /> Share
+                          </button>
+                          <button
                             className="kebab-item kebab-danger"
                             onClick={() => handleDelete(c.id)}
                             type="button"
@@ -520,6 +690,63 @@ export default function HomePage() {
                 );
               })
             )}
+
+            {filteredShared.length > 0 ? (
+              <>
+                <div className="list-section-label">Shared with me</div>
+                {filteredShared.map((c) => {
+                  const isActive = activeId === c.push_id;
+                  const isMenuOpen = openMenuId === c.share_id;
+                  return (
+                    <div
+                      key={c.share_id}
+                      className={`list-item-wrap${isActive ? " is-active" : ""}`}
+                    >
+                      <button
+                        className={`list-item${isActive ? " is-active" : ""}`}
+                        onClick={() => setActiveId(c.push_id)}
+                        type="button"
+                      >
+                        <h3 className="list-item-title">
+                          {c.title || c.conversation_title || "Untitled conversation"}
+                        </h3>
+                        {c.summary ? <p className="list-item-snippet">{c.summary}</p> : null}
+                        <span className="list-item-date" title={formatAbsolute(c.shared_at)}>
+                          <span className="shared-from">from {c.owner_email}</span>
+                          {" · "}
+                          {formatRelative(c.shared_at)}
+                        </span>
+                      </button>
+                      <div className="list-item-menu" ref={isMenuOpen ? menuRef : null}>
+                        <button
+                          className="kebab-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(isMenuOpen ? null : c.share_id);
+                          }}
+                          type="button"
+                          aria-label="More options"
+                        >
+                          <KebabIcon />
+                        </button>
+                        {isMenuOpen ? (
+                          <div className="kebab-menu" role="menu">
+                            <button
+                              className="kebab-item kebab-danger"
+                              onClick={() => handleLeaveShare(c)}
+                              type="button"
+                              role="menuitem"
+                            >
+                              <TrashIcon /> Remove
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            ) : null}
           </div>
         </aside>
 
@@ -563,7 +790,7 @@ export default function HomePage() {
                       placeholder="Conversation title"
                       autoFocus
                     />
-                  ) : (
+                  ) : detail.is_owner ? (
                     <h2
                       className="detail-title detail-title-editable"
                       onClick={() => startRename(detail.id, detail.title || "")}
@@ -573,6 +800,10 @@ export default function HomePage() {
                       <span className="detail-title-edit-hint" aria-hidden="true">
                         <PencilIcon />
                       </span>
+                    </h2>
+                  ) : (
+                    <h2 className="detail-title">
+                      {detail.title || "Untitled conversation"}
                     </h2>
                   )}
                   <button
@@ -594,6 +825,11 @@ export default function HomePage() {
                 </div>
                 <div className="detail-meta">
                   <span className={`status-pill status-${detail.status}`}>{detail.status}</span>
+                  {!detail.is_owner ? (
+                    <span className="shared-chip" title="This conversation was shared with you (summary only)">
+                      <ShareIcon /> Shared by {detail.shared_by || "another user"}
+                    </span>
+                  ) : null}
                   <span title={formatAbsolute(detail.created_at)}>{formatRelative(detail.created_at)}</span>
                   <span>{detail.source_platform}</span>
                 </div>
@@ -664,6 +900,92 @@ export default function HomePage() {
           )}
         </section>
       </div>
+
+      {shareTarget ? (
+        <div
+          className="modal-overlay"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeShareModal();
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="share-modal-title"
+        >
+          <div className="modal">
+            <div className="modal-header">
+              <h3 id="share-modal-title">Share “{shareTarget.title}”</h3>
+              <button
+                className="icon-btn"
+                onClick={closeShareModal}
+                type="button"
+                aria-label="Close"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            <p className="modal-hint">
+              The recipient sees this conversation's summary on their dashboard — not the
+              transcript. They need a ContextHub account with this email.
+            </p>
+            <form
+              className="share-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleShareSubmit();
+              }}
+            >
+              <input
+                ref={shareEmailRef}
+                className="input"
+                type="email"
+                placeholder="teammate@example.com"
+                value={shareEmail}
+                onChange={(e) => setShareEmail(e.target.value)}
+                disabled={shareSubmitting}
+              />
+              <button
+                className="btn"
+                type="submit"
+                disabled={shareSubmitting || !shareEmail.trim()}
+              >
+                {shareSubmitting ? (
+                  <><span className="spinner spinner-on-blue" /> Sharing…</>
+                ) : (
+                  <><ShareIcon /> Share</>
+                )}
+              </button>
+            </form>
+            {shareError ? <p className="toast toast-error">{shareError}</p> : null}
+            {shareNotice ? <p className="toast">{shareNotice}</p> : null}
+
+            <div className="share-list">
+              <p className="section-label">Who has access</p>
+              {shareListLoading ? (
+                <div className="loading">
+                  <span className="spinner" />
+                  Loading…
+                </div>
+              ) : shareList.length === 0 ? (
+                <p className="share-list-empty">Not shared with anyone yet.</p>
+              ) : (
+                shareList.map((s) => (
+                  <div key={s.id} className="share-list-item">
+                    <span className="share-list-email">{s.recipient_email}</span>
+                    <button
+                      className="link-btn share-revoke"
+                      onClick={() => handleRevokeShare(s)}
+                      disabled={revokingShareId === s.id}
+                      type="button"
+                    >
+                      {revokingShareId === s.id ? "Removing…" : "Remove"}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -898,6 +1220,17 @@ function TrashIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path d="M3 4h8M5.5 4V2.5h3V4M4 4l.5 7.5h5L10 4M6 6.5v3M8 6.5v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="3.5" cy="7" r="1.6" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="10.5" cy="3.2" r="1.6" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="10.5" cy="10.8" r="1.6" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M5 6.2 9 4M5 7.8 9 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }

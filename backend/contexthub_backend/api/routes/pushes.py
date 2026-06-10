@@ -14,13 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from contexthub_interchange.models import ConversationV0
 
-from contexthub_backend.api.errors import NotFoundError, ValidationError
+from contexthub_backend.api.errors import ForbiddenError, NotFoundError, ValidationError
 from contexthub_backend.auth.dependencies import AuthUser, get_current_user, get_rls_session
 from contexthub_backend.config import settings
 from contexthub_backend.db.models import (
     AuditLog,
     InterchangeFormatVersion,
     Push,
+    PushShare,
     Summary,
     Transcript,
     Workspace,
@@ -354,6 +355,19 @@ async def get_push(
     if push is None:
         raise NotFoundError("push not found")
 
+    # RLS also admits recipients of a share (read-only, no transcript). Tell
+    # the client which case it is so the UI can render an owner badge.
+    is_owner = push.user_id == user.user_id
+    shared_by: str | None = None
+    if not is_owner:
+        share_result = await session.execute(
+            select(PushShare.owner_email).where(
+                PushShare.push_id == push.id,
+                PushShare.recipient_user_id == user.user_id,
+            )
+        )
+        shared_by = share_result.scalar_one_or_none()
+
     summaries_result = await session.execute(select(Summary).where(Summary.push_id == push.id))
     summaries = summaries_result.scalars().all()
 
@@ -392,6 +406,8 @@ async def get_push(
             )
             for summary in summaries
         ],
+        is_owner=is_owner,
+        shared_by=shared_by,
     )
 
 
@@ -413,6 +429,10 @@ async def update_push(
     push = result.scalar_one_or_none()
     if push is None:
         raise NotFoundError("push not found")
+    # Shared pushes are SELECT-visible to recipients under RLS; writes stay
+    # owner-only, so reject early instead of failing the flush.
+    if push.user_id != user.user_id:
+        raise ForbiddenError("only the owner can rename a push")
 
     new_title = body.title.strip()
     push.title = new_title
@@ -494,6 +514,8 @@ async def delete_push(
     push = result.scalar_one_or_none()
     if push is None:
         raise NotFoundError("push not found")
+    if push.user_id != user.user_id:
+        raise ForbiddenError("only the owner can delete a push")
     if push.deleted_at is None:
         push.deleted_at = datetime.now(timezone.utc)
         session.add(

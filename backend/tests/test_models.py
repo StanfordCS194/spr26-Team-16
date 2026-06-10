@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "transcripts",
     "tags",
     "push_tags",
+    "push_shares",
     "push_relationships",
     "summary_feedback",
     "pulls",

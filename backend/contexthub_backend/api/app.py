@@ -29,6 +29,7 @@ from contexthub_backend.api.routes import me_bootstrap as me_bootstrap_routes
 from contexthub_backend.api.routes import pulls as pull_routes
 from contexthub_backend.api.routes import pushes as push_routes
 from contexthub_backend.api.routes import search as search_routes
+from contexthub_backend.api.routes import shares as share_routes
 from contexthub_backend.auth import dependencies as auth_deps
 from contexthub_backend.config import settings
 
@@ -80,6 +81,7 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
     app.include_router(me_bootstrap_routes.router, prefix="/v1")
     app.include_router(extension_pairing_routes.router, prefix="/v1")
     app.include_router(push_routes.router, prefix="/v1")
+    app.include_router(share_routes.router, prefix="/v1")
     app.include_router(search_routes.router, prefix="/v1")
     app.include_router(pull_routes.router, prefix="/v1")
     # admin router declares its own /v1/admin prefix; do not double-prefix.

@@ -200,6 +200,7 @@ class Push(Base):
     summaries: Mapped[list["Summary"]] = relationship(back_populates="push")
     transcript: Mapped[Optional["Transcript"]] = relationship(back_populates="push", uselist=False)
     push_tags: Mapped[list["PushTag"]] = relationship(back_populates="push")
+    shares: Mapped[list["PushShare"]] = relationship(back_populates="push")
     from_relationships: Mapped[list["PushRelationship"]] = relationship(
         back_populates="from_push", foreign_keys="PushRelationship.from_push_id"
     )
@@ -383,6 +384,50 @@ class PushRelationship(Base):
     to_push: Mapped["Push"] = relationship(
         back_populates="to_relationships", foreign_keys=[to_push_id]
     )
+
+
+# ---------------------------------------------------------------------------
+# push_shares
+# ---------------------------------------------------------------------------
+
+class PushShare(Base):
+    """Grant of read access to a push's summary layers for another user.
+
+    Emails are denormalized at share time so list/detail endpoints can display
+    them without read access to auth.users. The raw transcript is excluded from
+    the grant at the RLS level (see migration 006).
+    """
+
+    __tablename__ = "push_shares"
+    __table_args__ = (
+        sa.UniqueConstraint("push_id", "recipient_user_id", name="uq_push_shares_push_recipient"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=_uuid7
+    )
+    push_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("pushes.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    recipient_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    owner_email: Mapped[str] = mapped_column(Text, nullable=False)
+    recipient_email: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    push: Mapped["Push"] = relationship(back_populates="shares")
 
 
 # ---------------------------------------------------------------------------
